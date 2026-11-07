@@ -1,7 +1,7 @@
 {
   "name": "Fidan Çanta Gelir",
   "short_name": "FidanÇanta",
-  "start_url": ".",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#f3f1ed",
   "theme_color": "#ffffff",

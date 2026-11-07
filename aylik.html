@@ -80,6 +80,19 @@
 
     <script src="common.js"></script>
     <script src="app.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const mp = document.getElementById("monthPicker");
+            if (mp) {
+                const now = new Date();
+                const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                mp.value = ym;
+                if (typeof loadMonthlySummary === "function") {
+                    setTimeout(loadMonthlySummary, 100);
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>

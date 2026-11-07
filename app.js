@@ -380,6 +380,8 @@ function loadDashboardSummary() {
         };
     } catch(e) {}
 }
+
+function clearDay() {
     if (!dbReady) return alert("Veritabanı hazır değil");
 
     if (!confirm("Seçili günün TÜM kayıtları silinecek. Emin misin?")) {
@@ -561,7 +563,7 @@ function importData() {
                     clearAndInsertDB("customerDB", 1, ["customers", "customerRecords"], data.customers),
                     clearAndInsertDB("supplierDB", 1, ["suppliers", "supplierRecords"], data.suppliers)
                 ]).then(() => {
-                    alert("Tüm veriler başarıyla içe aktarıldı ✅\\nSayfa yenileniyor...");
+                    alert("Tüm veriler başarıyla içe aktarıldı ✅\nSayfa yenileniyor...");
                     location.reload();
                 }).catch(err => {
                     alert("Veritabanına yazılırken hata oluştu ❌");
