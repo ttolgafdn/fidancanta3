@@ -13,35 +13,42 @@ let activeActionTab = "dispatch"; // 'dispatch' (mal verildi) veya 'payment' (ta
 let currentWaybillBase64 = null;
 window.currentRenderedRecords = [];
 
-// IndexedDB Başlat
-const customerRequest = indexedDB.open("customerDB", 1);
+function initMusteriApp() {
+    const customerRequest = indexedDB.open("customerDB", 1);
 
-customerRequest.onupgradeneeded = e => {
-    const db = e.target.result;
-    if (!db.objectStoreNames.contains("customers")) {
-        db.createObjectStore("customers", { keyPath: "id", autoIncrement: true });
-    }
-    if (!db.objectStoreNames.contains("customerRecords")) {
-        db.createObjectStore("customerRecords", { keyPath: "id", autoIncrement: true });
-    }
-};
+    customerRequest.onupgradeneeded = e => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains("customers")) {
+            db.createObjectStore("customers", { keyPath: "id", autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains("customerRecords")) {
+            db.createObjectStore("customerRecords", { keyPath: "id", autoIncrement: true });
+        }
+    };
 
-customerRequest.onsuccess = e => {
-    customerDB = e.target.result;
-    customerDBReady = true;
+    customerRequest.onsuccess = e => {
+        customerDB = e.target.result;
+        customerDBReady = true;
 
-    loadCustomersToMenu();
+        loadCustomersToMenu();
 
-    if (customerId) {
-        showActiveCustomerView();
-        loadCustomerName();
-        loadRecords();
-    } else {
-        showOverviewList();
-    }
-};
+        if (customerId) {
+            showActiveCustomerView();
+            loadCustomerName();
+            loadRecords();
+        } else {
+            showOverviewList();
+        }
+    };
 
-customerRequest.onerror = () => alert("Müşteri veritabanı açılamadı");
+    customerRequest.onerror = () => alert("Müşteri veritabanı açılamadı");
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initMusteriApp);
+} else {
+    initMusteriApp();
+}
 
 // Tarih kutusunu bugünün yerel tarihi ile doldur
 function initDefaultDate() {
