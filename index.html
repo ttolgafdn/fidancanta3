@@ -7,7 +7,13 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ffffff">
     <title>Kasa · Fidan Çanta</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=4" />
+    <script>
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister();});}).catch(function(){});
+            if (window.caches) caches.keys().then(function(k){k.forEach(function(c){caches.delete(c);});}).catch(function(){});
+        }
+    </script>
 </head>
 
 <body>
@@ -128,8 +134,8 @@
 
     </main>
 
-    <script src="common.js"></script>
-    <script src="app.js"></script>
+    <script src="common.js?v=4"></script>
+    <script src="app.js?v=4"></script>
 
 </body>
 

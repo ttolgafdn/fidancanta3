@@ -1,4 +1,121 @@
+// =========================================================
+// FİDAN ÇANTA — KASA & GENEL UYGULAMA MANTIĞI
+// =========================================================
 
+// Eğer sunucuda common.js yüklenmemişse veya eski önbellekte kalmışsa yedek tanımlar
+if (typeof DB_SCHEMAS === "undefined") {
+    window.DB_SCHEMAS = {
+        financeDB: {
+            version: 2,
+            upgrade(db) {
+                if (!db.objectStoreNames.contains("records")) {
+                    const s = db.createObjectStore("records", { keyPath: "id", autoIncrement: true });
+                    s.createIndex("date", "date", { unique: false });
+                }
+            },
+            stores: ["records"]
+        },
+        customerDB: {
+            version: 2,
+            upgrade(db) {
+                if (!db.objectStoreNames.contains("customers")) {
+                    db.createObjectStore("customers", { keyPath: "id", autoIncrement: true });
+                }
+                if (!db.objectStoreNames.contains("customerRecords")) {
+                    db.createObjectStore("customerRecords", { keyPath: "id", autoIncrement: true });
+                }
+            },
+            stores: ["customers", "customerRecords"]
+        },
+        supplierDB: {
+            version: 2,
+            upgrade(db) {
+                if (!db.objectStoreNames.contains("suppliers")) {
+                    db.createObjectStore("suppliers", { keyPath: "id", autoIncrement: true });
+                }
+                if (!db.objectStoreNames.contains("supplierRecords")) {
+                    db.createObjectStore("supplierRecords", { keyPath: "id", autoIncrement: true });
+                }
+            },
+            stores: ["suppliers", "supplierRecords"]
+        }
+    };
+}
+
+if (typeof openVerifiedDB === "undefined") {
+    window.openVerifiedDB = function(dbName, targetVersion) {
+        return new Promise((resolve, reject) => {
+            const schema = window.DB_SCHEMAS[dbName];
+            const ver = targetVersion || (schema ? schema.version : 2);
+            let req;
+            try {
+                req = indexedDB.open(dbName, ver);
+            } catch (err) {
+                reject(err);
+                return;
+            }
+
+            req.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (schema) schema.upgrade(db);
+            };
+
+            req.onsuccess = (e) => {
+                const db = e.target.result;
+                if (schema && schema.stores.some(s => !db.objectStoreNames.contains(s))) {
+                    const nextVer = db.version + 1;
+                    db.close();
+                    window.openVerifiedDB(dbName, nextVer).then(resolve).catch(reject);
+                    return;
+                }
+                resolve(db);
+            };
+
+            req.onerror = () => {
+                if (req.error && req.error.name === "VersionError" && !targetVersion) {
+                    const fallbackReq = indexedDB.open(dbName);
+                    fallbackReq.onsuccess = (ev) => {
+                        const db = ev.target.result;
+                        if (schema && schema.stores.some(s => !db.objectStoreNames.contains(s))) {
+                            const nextVer = db.version + 1;
+                            db.close();
+                            window.openVerifiedDB(dbName, nextVer).then(resolve).catch(reject);
+                            return;
+                        }
+                        resolve(db);
+                    };
+                    fallbackReq.onerror = () => reject(fallbackReq.error);
+                    return;
+                }
+                reject(req.error);
+            };
+        });
+    };
+}
+
+if (typeof formatTL === "undefined") {
+    window.formatTL = function(val) {
+        const num = Number(val) || 0;
+        return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
+    };
+}
+
+if (typeof formatDateTR === "undefined") {
+    window.formatDateTR = function(dateStr) {
+        if (!dateStr) return "-";
+        const parts = String(dateStr).split("T")[0].split("-");
+        if (parts.length === 3) return `${parts[2]}.${parts[1]}.${parts[0]}`;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return String(dateStr);
+        return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+    };
+}
+
+if (typeof getLocalDateString === "undefined") {
+    window.getLocalDateString = function(d = new Date()) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
+}
 
 // =======================
 // DATABASE
@@ -7,23 +124,14 @@
 let db;
 let dbReady = false;
 
-const request = indexedDB.open("financeDB", 2);
-
-request.onupgradeneeded = e => {
-    db = e.target.result;
-    const store = db.createObjectStore("records", {
-        keyPath: "id",
-        autoIncrement: true
-    });
-    store.createIndex("date", "date", { unique: false });
-};
-
-request.onsuccess = e => {
-    db = e.target.result;
+openVerifiedDB("financeDB").then(database => {
+    db = database;
     dbReady = true;
     updateDateUI();
     loadDashboardSummary();
-};
+}).catch(err => {
+    console.error("financeDB hatası:", err);
+});
 
 // =======================
 // DATE CONTROL
@@ -66,6 +174,7 @@ function onDateChange() {
     selectedDate = new Date(input);
     loadDayRecords();
 }
+
 // =======================
 // SAVE RECORD
 // =======================
@@ -74,7 +183,7 @@ function save() {
     if (!dbReady) return alert("Veritabanı hazır değil");
 
     const record = {
-        payment: document.getElementById("payment").value, // cash | visa
+        payment: document.getElementById("payment").value, // cash | visa | transfer
         amount: Number(document.getElementById("amount").value),
         date: getISODate(selectedDate)
     };
@@ -90,7 +199,6 @@ function save() {
 
     document.getElementById("amount").value = "";
 }
-
 
 // =======================
 // LOAD DAY TOTALS
@@ -130,45 +238,48 @@ function loadDayRecords() {
     };
 }
 
-
 function getDBData(dbName, version, stores) {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(dbName, version);
-        request.onsuccess = e => {
-            const db = e.target.result;
+    return openVerifiedDB(dbName).then(database => {
+        return new Promise((resolve, reject) => {
             const data = {};
-            let validStores = stores.filter(s => db.objectStoreNames.contains(s));
+            const validStores = stores.filter(s => database.objectStoreNames.contains(s));
             if (validStores.length === 0) {
+                database.close();
                 resolve(data);
                 return;
             }
-            const tx = db.transaction(validStores, "readonly");
+            const tx = database.transaction(validStores, "readonly");
             let completed = 0;
             validStores.forEach(storeName => {
                 tx.objectStore(storeName).getAll().onsuccess = ev => {
                     data[storeName] = ev.target.result || [];
                     completed++;
-                    if (completed === validStores.length) resolve(data);
+                    if (completed === validStores.length) {
+                        database.close();
+                        resolve(data);
+                    }
                 };
             });
-            tx.onerror = () => reject(tx.error);
-        };
-        request.onerror = () => reject(request.error);
+            tx.onerror = () => {
+                database.close();
+                reject(tx.error);
+            };
+        });
     });
 }
 
 function exportData() {
     Promise.all([
         getDBData("financeDB", 2, ["records"]),
-        getDBData("customerDB", 1, ["customers", "customerRecords"]),
-        getDBData("supplierDB", 1, ["suppliers", "supplierRecords"])
+        getDBData("customerDB", 2, ["customers", "customerRecords"]),
+        getDBData("supplierDB", 2, ["suppliers", "supplierRecords"])
     ]).then(results => {
         const allData = {
             finance: results[0],
             customers: results[1],
             suppliers: results[2]
         };
-        
+
         const blob = new Blob([JSON.stringify(allData, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -183,9 +294,12 @@ function exportData() {
 }
 
 function toggleMenu() {
-    document.getElementById("sideMenu").classList.toggle("open");
+    const menu = document.getElementById("sideMenu");
+    if (menu) {
+        menu.classList.toggle("open");
+        document.body.classList.toggle("menu-open", menu.classList.contains("open"));
+    }
 }
-
 
 function loadMonthlySummary() {
     if (!dbReady) return;
@@ -220,7 +334,6 @@ function loadMonthlySummary() {
         renderMonthlyTable(daily, year, month);
     };
 }
-
 
 function renderMonthlyTable(data, year, month) {
     const tbody = document.querySelector("#summaryTable tbody");
@@ -262,9 +375,6 @@ function renderMonthlyTable(data, year, month) {
     if (taEl) taEl.textContent = (totalCash + totalVisa + totalTransfer).toLocaleString("tr-TR") + " ₺";
 }
 
-
-
-
 function loadYearlySummary() {
     if (!dbReady) return;
 
@@ -283,6 +393,7 @@ function loadYearlySummary() {
 
         let totalCash = 0;
         let totalVisa = 0;
+        let totalTransfer = 0;
 
         const months = Array.from({ length: 12 }, () => ({
             cash: 0,
@@ -331,59 +442,56 @@ function loadYearlySummary() {
     };
 }
 
-// Service Worker Kaydı (Hem service-worker.js hem service-worker-off.js için güvenli kayıt)
+// Eski Service Worker önbelleklerini temizle (sayfa geçişlerini kilitlemesini önler)
 if ("serviceWorker" in navigator) {
-    const swPath = "service-worker.js";
-    navigator.serviceWorker.register(swPath)
-        .then(reg => {
-            console.log("Service Worker aktif:", reg.scope);
-            // Varsa güncellemeyi hemen kontrol et
-            reg.update();
-        })
-        .catch(err => console.warn("SW uyarısı:", err));
+    navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(r => r.unregister());
+    }).catch(() => {});
+    if ("caches" in window) {
+        caches.keys().then(keys => {
+            keys.forEach(k => caches.delete(k));
+        }).catch(() => {});
+    }
 }
-
 
 function loadDashboardSummary() {
     const recEl = document.getElementById("homeTotalReceivable");
     const payEl = document.getElementById("homeTotalPayable");
     if (!recEl && !payEl) return;
 
-    // Müşterilerden Toplam Alacak
-    try {
-        const custReq = indexedDB.open("customerDB", 1);
-        custReq.onsuccess = ev => {
-            const cdb = ev.target.result;
-            if (cdb.objectStoreNames.contains("customerRecords")) {
-                const tx = cdb.transaction("customerRecords", "readonly");
-                tx.objectStore("customerRecords").getAll().onsuccess = e => {
-                    let totalReceivable = 0;
-                    (e.target.result || []).forEach(r => {
-                        totalReceivable += (Number(r.total || 0) - Number(r.paid || 0));
-                    });
-                    if (recEl) recEl.textContent = typeof formatTL === "function" ? formatTL(totalReceivable) : totalReceivable.toLocaleString("tr-TR") + " ₺";
-                };
-            }
-        };
-    } catch(e) {}
+    // Müşterilerden Toplam Alacak (openVerifiedDB ile güvenli açılış)
+    openVerifiedDB("customerDB").then(cdb => {
+        if (cdb.objectStoreNames.contains("customerRecords")) {
+            const tx = cdb.transaction("customerRecords", "readonly");
+            tx.objectStore("customerRecords").getAll().onsuccess = e => {
+                let totalReceivable = 0;
+                (e.target.result || []).forEach(r => {
+                    totalReceivable += (Number(r.total || 0) - Number(r.paid || 0));
+                });
+                if (recEl) recEl.textContent = formatTL(totalReceivable);
+                cdb.close();
+            };
+        } else {
+            cdb.close();
+        }
+    }).catch(() => {});
 
-    // Toptancılara Toplam Borç
-    try {
-        const suppReq = indexedDB.open("supplierDB", 1);
-        suppReq.onsuccess = ev => {
-            const sdb = ev.target.result;
-            if (sdb.objectStoreNames.contains("supplierRecords")) {
-                const tx = sdb.transaction("supplierRecords", "readonly");
-                tx.objectStore("supplierRecords").getAll().onsuccess = e => {
-                    let totalPayable = 0;
-                    (e.target.result || []).forEach(r => {
-                        totalPayable += (Number(r.total || 0) - Number(r.paid || 0));
-                    });
-                    if (payEl) payEl.textContent = typeof formatTL === "function" ? formatTL(totalPayable) : totalPayable.toLocaleString("tr-TR") + " ₺";
-                };
-            }
-        };
-    } catch(e) {}
+    // Toptancılara Toplam Borç (openVerifiedDB ile güvenli açılış)
+    openVerifiedDB("supplierDB").then(sdb => {
+        if (sdb.objectStoreNames.contains("supplierRecords")) {
+            const tx = sdb.transaction("supplierRecords", "readonly");
+            tx.objectStore("supplierRecords").getAll().onsuccess = e => {
+                let totalPayable = 0;
+                (e.target.result || []).forEach(r => {
+                    totalPayable += (Number(r.total || 0) - Number(r.paid || 0));
+                });
+                if (payEl) payEl.textContent = formatTL(totalPayable);
+                sdb.close();
+            };
+        } else {
+            sdb.close();
+        }
+    }).catch(() => {});
 }
 
 function clearDay() {
@@ -432,10 +540,9 @@ function removeAmount() {
     req.onsuccess = () => {
         let remaining = amountToRemove;
 
-        // bugüne + ödeme tipine göre filtrele
         const todays = req.result
             .filter(r => r.date === day && r.payment === paymentType)
-            .sort((a, b) => b.id - a.id); // en son eklenenlerden başla
+            .sort((a, b) => b.id - a.id);
 
         for (let r of todays) {
             if (remaining <= 0) break;
@@ -444,7 +551,6 @@ function removeAmount() {
                 remaining -= r.amount;
                 store.delete(r.id);
             } else {
-                // kaydı güncelle
                 store.put({
                     ...r,
                     amount: r.amount - remaining
@@ -464,11 +570,10 @@ const amountInput = document.getElementById("amount");
 
 if (amountInput) {
     amountInput.addEventListener("input", () => {
-        // sadece sayı girildiğinde pulse atsın
         if (amountInput.value.trim() === "") return;
 
         amountInput.classList.remove("pulse");
-        void amountInput.offsetWidth; // animasyonu resetler
+        void amountInput.offsetWidth;
         amountInput.classList.add("pulse");
     });
 }
@@ -482,7 +587,6 @@ function pulseAmountInput() {
 }
 
 function animateNumber(el, target, duration = 500) {
-    const start = 0;
     const startTime = performance.now();
 
     function step(now) {
@@ -499,32 +603,17 @@ function animateNumber(el, target, duration = 500) {
 }
 
 function clearAndInsertDB(dbName, version, stores, dataObj) {
-    return new Promise((resolve, reject) => {
-        if (!dataObj) { resolve(); return; }
-        const request = indexedDB.open(dbName, version);
-        
-        request.onupgradeneeded = e => {
-            const db = e.target.result;
-            if (dbName === "financeDB" && !db.objectStoreNames.contains("records")) {
-                const s = db.createObjectStore("records", { keyPath: "id", autoIncrement: true });
-                s.createIndex("date", "date", { unique: false });
+    if (!dataObj) return Promise.resolve();
+    return openVerifiedDB(dbName).then(database => {
+        return new Promise((resolve, reject) => {
+            const validStores = stores.filter(s => database.objectStoreNames.contains(s));
+            if (validStores.length === 0) {
+                database.close();
+                resolve();
+                return;
             }
-            if (dbName === "customerDB") {
-                if (!db.objectStoreNames.contains("customers")) db.createObjectStore("customers", { keyPath: "id", autoIncrement: true });
-                if (!db.objectStoreNames.contains("customerRecords")) db.createObjectStore("customerRecords", { keyPath: "id", autoIncrement: true });
-            }
-            if (dbName === "supplierDB") {
-                if (!db.objectStoreNames.contains("suppliers")) db.createObjectStore("suppliers", { keyPath: "id", autoIncrement: true });
-                if (!db.objectStoreNames.contains("supplierRecords")) db.createObjectStore("supplierRecords", { keyPath: "id", autoIncrement: true });
-            }
-        };
-        
-        request.onsuccess = e => {
-            const db = e.target.result;
-            let validStores = stores.filter(s => db.objectStoreNames.contains(s));
-            if (validStores.length === 0) { resolve(); return; }
-            const tx = db.transaction(validStores, "readwrite");
-            
+            const tx = database.transaction(validStores, "readwrite");
+
             validStores.forEach(storeName => {
                 const store = tx.objectStore(storeName);
                 store.clear().onsuccess = () => {
@@ -534,10 +623,15 @@ function clearAndInsertDB(dbName, version, stores, dataObj) {
                     }
                 };
             });
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        };
-        request.onerror = () => reject(request.error);
+            tx.oncomplete = () => {
+                database.close();
+                resolve();
+            };
+            tx.onerror = () => {
+                database.close();
+                reject(tx.error);
+            };
+        });
     });
 }
 
@@ -553,8 +647,7 @@ function importData() {
         reader.onload = evt => {
             try {
                 let data = JSON.parse(evt.target.result);
-                
-                // Eski yedekler (sadece finance veya sadece customer/supplier) ile uyumluluk
+
                 if (Array.isArray(data)) {
                     data = { finance: { records: data } };
                 } else if (data.customers && !data.finance) {
@@ -563,10 +656,13 @@ function importData() {
                     data = { suppliers: data };
                 }
 
+                // Açık bağlantıları kapat ki yazma işlemi takılmasın
+                if (db) { try { db.close(); } catch(e) {} }
+
                 Promise.all([
                     clearAndInsertDB("financeDB", 2, ["records"], data.finance),
-                    clearAndInsertDB("customerDB", 1, ["customers", "customerRecords"], data.customers),
-                    clearAndInsertDB("supplierDB", 1, ["suppliers", "supplierRecords"], data.suppliers)
+                    clearAndInsertDB("customerDB", 2, ["customers", "customerRecords"], data.customers),
+                    clearAndInsertDB("supplierDB", 2, ["suppliers", "supplierRecords"], data.suppliers)
                 ]).then(() => {
                     alert("Tüm veriler başarıyla içe aktarıldı ✅\nSayfa yenileniyor...");
                     location.reload();

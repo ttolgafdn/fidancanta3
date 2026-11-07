@@ -13,21 +13,9 @@ let activeActionTab = "dispatch"; // 'dispatch' (mal alındı) veya 'payment' (�
 let currentWaybillBase64 = null;
 window.currentRenderedRecords = [];
 
-// IndexedDB Başlat
-const req = indexedDB.open("supplierDB", 1);
-
-req.onupgradeneeded = e => {
-    const db = e.target.result;
-    if (!db.objectStoreNames.contains("suppliers")) {
-        db.createObjectStore("suppliers", { keyPath: "id", autoIncrement: true });
-    }
-    if (!db.objectStoreNames.contains("supplierRecords")) {
-        db.createObjectStore("supplierRecords", { keyPath: "id", autoIncrement: true });
-    }
-};
-
-req.onsuccess = e => {
-    supplierDB = e.target.result;
+// IndexedDB Başlat (Otomatik Tablo Onarımlı)
+openVerifiedDB("supplierDB").then(database => {
+    supplierDB = database;
     supplierDBReady = true;
 
     loadSuppliersToMenu();
@@ -39,9 +27,10 @@ req.onsuccess = e => {
     } else {
         showOverviewList();
     }
-};
-
-req.onerror = () => alert("Toptancı veritabanı açılamadı");
+}).catch(err => {
+    console.error("Toptancı veritabanı hatası:", err);
+    alert("Toptancı veritabanı açılamadı");
+});
 
 // Tarih kutusunu bugünün yerel tarihi ile doldur
 function initDefaultDate() {

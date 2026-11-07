@@ -1,6 +1,94 @@
 // =========================================================
-// FİDAN ÇANTA — ORTAK YARDIMCI VE PAYLAŞILAN FONKSİYONLAR
+// FİDAN ÇANTA — ORTAK YARDIMCI VE VERİTABANI FONKSİYONLARI
 // =========================================================
+
+// Veritabanı Şemaları ve Otomatik Onarımlı Açıcı
+const DB_SCHEMAS = {
+    financeDB: {
+        version: 2,
+        upgrade(db) {
+            if (!db.objectStoreNames.contains("records")) {
+                const s = db.createObjectStore("records", { keyPath: "id", autoIncrement: true });
+                s.createIndex("date", "date", { unique: false });
+            }
+        },
+        stores: ["records"]
+    },
+    customerDB: {
+        version: 2,
+        upgrade(db) {
+            if (!db.objectStoreNames.contains("customers")) {
+                db.createObjectStore("customers", { keyPath: "id", autoIncrement: true });
+            }
+            if (!db.objectStoreNames.contains("customerRecords")) {
+                db.createObjectStore("customerRecords", { keyPath: "id", autoIncrement: true });
+            }
+        },
+        stores: ["customers", "customerRecords"]
+    },
+    supplierDB: {
+        version: 2,
+        upgrade(db) {
+            if (!db.objectStoreNames.contains("suppliers")) {
+                db.createObjectStore("suppliers", { keyPath: "id", autoIncrement: true });
+            }
+            if (!db.objectStoreNames.contains("supplierRecords")) {
+                db.createObjectStore("supplierRecords", { keyPath: "id", autoIncrement: true });
+            }
+        },
+        stores: ["suppliers", "supplierRecords"]
+    }
+};
+
+function openVerifiedDB(dbName, targetVersion) {
+    return new Promise((resolve, reject) => {
+        const schema = DB_SCHEMAS[dbName];
+        const ver = targetVersion || (schema ? schema.version : 2);
+        let req;
+        try {
+            req = indexedDB.open(dbName, ver);
+        } catch (err) {
+            reject(err);
+            return;
+        }
+
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (schema) schema.upgrade(db);
+        };
+
+        req.onsuccess = (e) => {
+            const db = e.target.result;
+            // Eğer daha önce tabloları eksik oluşturulmuş bir veritabanı varsa sürüm yükselterek otomatik onar
+            if (schema && schema.stores.some(s => !db.objectStoreNames.contains(s))) {
+                const nextVer = db.version + 1;
+                db.close();
+                openVerifiedDB(dbName, nextVer).then(resolve).catch(reject);
+                return;
+            }
+            resolve(db);
+        };
+
+        req.onerror = () => {
+            if (req.error && req.error.name === "VersionError" && !targetVersion) {
+                const fallbackReq = indexedDB.open(dbName);
+                fallbackReq.onsuccess = (ev) => {
+                    const db = ev.target.result;
+                    if (schema && schema.stores.some(s => !db.objectStoreNames.contains(s))) {
+                        const nextVer = db.version + 1;
+                        db.close();
+                        openVerifiedDB(dbName, nextVer).then(resolve).catch(reject);
+                        return;
+                    }
+                    resolve(db);
+                };
+                fallbackReq.onerror = () => reject(fallbackReq.error);
+                return;
+            }
+            reject(req.error);
+        };
+    });
+}
 
 // Para formatı (Örn: 3.900,00 ₺)
 function formatTL(val) {
@@ -41,8 +129,6 @@ function toggleMenu() {
 }
 
 // Global Fiş / İrsaliye Modalını Açma (Teklif Fişi Formatında)
-// record: { id, date, total, paid, waybill, waybillText, items: [{name, qty, unit, price, total}] }
-// partyInfo: { type: 'Müşteri' | 'Toptancı', name: string }
 function renderWaybillReceipt(record, partyInfo = {}) {
     const modal = document.getElementById("dayDetailsModal");
     if (!modal) return;
@@ -211,4 +297,3 @@ function shareReceiptViaWhatsApp(record, partyName, partyType) {
     const encoded = encodeURIComponent(text);
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
 }
-
