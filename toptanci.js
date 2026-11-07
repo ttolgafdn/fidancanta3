@@ -13,42 +13,35 @@ let activeActionTab = "dispatch"; // 'dispatch' (mal alındı) veya 'payment' (�
 let currentWaybillBase64 = null;
 window.currentRenderedRecords = [];
 
-function initToptanciApp() {
-    const req = indexedDB.open("supplierDB", 1);
+// IndexedDB Başlat
+const req = indexedDB.open("supplierDB", 1);
 
-    req.onupgradeneeded = e => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains("suppliers")) {
-            db.createObjectStore("suppliers", { keyPath: "id", autoIncrement: true });
-        }
-        if (!db.objectStoreNames.contains("supplierRecords")) {
-            db.createObjectStore("supplierRecords", { keyPath: "id", autoIncrement: true });
-        }
-    };
+req.onupgradeneeded = e => {
+    const db = e.target.result;
+    if (!db.objectStoreNames.contains("suppliers")) {
+        db.createObjectStore("suppliers", { keyPath: "id", autoIncrement: true });
+    }
+    if (!db.objectStoreNames.contains("supplierRecords")) {
+        db.createObjectStore("supplierRecords", { keyPath: "id", autoIncrement: true });
+    }
+};
 
-    req.onsuccess = e => {
-        supplierDB = e.target.result;
-        supplierDBReady = true;
+req.onsuccess = e => {
+    supplierDB = e.target.result;
+    supplierDBReady = true;
 
-        loadSuppliersToMenu();
+    loadSuppliersToMenu();
 
-        if (supplierId) {
-            showActiveSupplierView();
-            loadSupplierName();
-            loadRecords();
-        } else {
-            showOverviewList();
-        }
-    };
+    if (supplierId) {
+        showActiveSupplierView();
+        loadSupplierName();
+        loadRecords();
+    } else {
+        showOverviewList();
+    }
+};
 
-    req.onerror = () => alert("Toptancı veritabanı açılamadı");
-}
-
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initToptanciApp);
-} else {
-    initToptanciApp();
-}
+req.onerror = () => alert("Toptancı veritabanı açılamadı");
 
 // Tarih kutusunu bugünün yerel tarihi ile doldur
 function initDefaultDate() {
@@ -109,7 +102,7 @@ function loadSuppliersOverview() {
 
             const card = document.createElement("div");
             card.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;";
-            card.onclick = () => location.href = `./toptanci.html?id=${s.id}`;
+            card.onclick = () => location.href = `toptanci.html?id=${s.id}`;
             card.innerHTML = `
                 <div>
                     <strong style="font-size: 15px; color: var(--ink);">📦 ${s.name}</strong>
@@ -135,11 +128,11 @@ function loadSuppliersToMenu() {
     tx.objectStore("suppliers").getAll().onsuccess = e => {
         (e.target.result || []).forEach(s => {
             if (!s || !s.name) return;
-            const btn = document.createElement("a");
-            btn.className = "menu-item" + (s.id === supplierId ? " active" : "");
-            btn.textContent = "📦 " + s.name;
-            btn.href = `./toptanci.html?id=${s.id}`;
-            list.appendChild(btn);
+            const div = document.createElement("div");
+            div.className = "menu-item" + (s.id === supplierId ? " active" : "");
+            div.textContent = "📦 " + s.name;
+            div.onclick = () => location.href = `toptanci.html?id=${s.id}`;
+            list.appendChild(div);
         });
     };
 }
@@ -525,7 +518,7 @@ function saveNewSupplier() {
     req.onsuccess = (e) => {
         const newId = e.target.result;
         closeAddSupplierModal();
-        location.href = `./toptanci.html?id=${newId}`;
+        location.href = `toptanci.html?id=${newId}`;
     };
 }
 
