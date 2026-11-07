@@ -29,9 +29,9 @@
             <span class="brand-name">FİDAN ÇANTA</span>
         </div>
         <div class="menu-scroll">
-            <a class="menu-item active" href="index.html">Kasa</a>
-            <a class="menu-item" href="musteri.html">Müşteriler / Alacaklar</a>
-            <a class="menu-item" href="toptanci.html">Toptancılar / Borçlar</a>
+            <a class="menu-item active" href="./index.html">Kasa</a>
+            <a class="menu-item" href="./musteri.html">Müşteriler / Alacaklar</a>
+            <a class="menu-item" href="./toptanci.html">Toptancılar / Borçlar</a>
         </div>
         <div class="menu-footer">
             <button type="button" class="menu-item" onclick="exportData()">Tüm Verileri Yedekle</button>
@@ -44,19 +44,19 @@
 
         <section class="card">
             <div class="button-row">
-                <button type="button" class="btn btn-secondary" onclick="location.href='aylik.html'">📅 Aylık Hesap</button>
-                <button type="button" class="btn btn-secondary" onclick="location.href='yillik.html'">📊 Yıllık Hesap</button>
+                <button type="button" class="btn btn-secondary" onclick="location.href='./aylik.html'">📅 Aylık Hesap</button>
+                <button type="button" class="btn btn-secondary" onclick="location.href='./yillik.html'">📊 Yıllık Hesap</button>
             </div>
         </section>
 
         <!-- Dükkan Genel Bakiye Durumu (Alacak / Borç Özeti) -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
-            <div class="card" style="margin-bottom: 0; padding: 12px; cursor: pointer; border-left: 3px solid var(--positive);" onclick="location.href='musteri.html'">
+            <div class="card" style="margin-bottom: 0; padding: 12px; cursor: pointer; border-left: 3px solid var(--positive);" onclick="location.href='./musteri.html'">
                 <div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Toplam Alacak</div>
                 <div id="homeTotalReceivable" style="font-size: 17px; font-weight: 800; color: var(--positive); margin-top: 4px;" class="money">0,00 ₺</div>
                 <div style="font-size: 10px; color: var(--text-3); margin-top: 2px;">Müşterilerden ›</div>
             </div>
-            <div class="card" style="margin-bottom: 0; padding: 12px; cursor: pointer; border-left: 3px solid var(--accent);" onclick="location.href='toptanci.html'">
+            <div class="card" style="margin-bottom: 0; padding: 12px; cursor: pointer; border-left: 3px solid var(--accent);" onclick="location.href='./toptanci.html'">
                 <div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Toplam Borç</div>
                 <div id="homeTotalPayable" style="font-size: 17px; font-weight: 800; color: var(--accent); margin-top: 4px;" class="money">0,00 ₺</div>
                 <div style="font-size: 10px; color: var(--text-3); margin-top: 2px;">Toptancılara ›</div>

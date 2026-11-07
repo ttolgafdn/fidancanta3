@@ -105,7 +105,7 @@ function loadCustomersOverview() {
 
             const card = document.createElement("div");
             card.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;";
-            card.onclick = () => location.href = `musteri.html?id=${c.id}`;
+            card.onclick = () => location.href = `./musteri.html?id=${c.id}`;
             card.innerHTML = `
                 <div>
                     <strong style="font-size: 15px; color: var(--ink);">👤 ${c.name}</strong>
@@ -134,7 +134,7 @@ function loadCustomersToMenu() {
             const btn = document.createElement("a");
             btn.className = "menu-item" + (s.id === customerId ? " active" : "");
             btn.textContent = "👤 " + s.name;
-            btn.href = `musteri.html?id=${s.id}`;
+            btn.href = `./musteri.html?id=${s.id}`;
             list.appendChild(btn);
         });
     };
@@ -521,7 +521,7 @@ function saveNewCustomer() {
     req.onsuccess = (e) => {
         const newId = e.target.result;
         closeAddCustomerModal();
-        location.href = `musteri.html?id=${newId}`;
+        location.href = `./musteri.html?id=${newId}`;
     };
 }
 
@@ -541,6 +541,6 @@ function deleteCurrentCustomer() {
 
     tx.oncomplete = () => {
         alert("Müşteri ve tüm hareketleri silindi ✅");
-        location.href = "musteri.html";
+        location.href = "./musteri.html";
     };
 }

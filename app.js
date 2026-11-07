@@ -331,10 +331,15 @@ function loadYearlySummary() {
     };
 }
 
-// Service Worker (isteğe bağlı)
-if ("serviceWorker" in navigator && location.protocol === "https:") {
-    navigator.serviceWorker.register("service-worker-off.js")
-        .then(() => console.log("Service Worker aktif"))
+// Service Worker Kaydı (Hem service-worker.js hem service-worker-off.js için güvenli kayıt)
+if ("serviceWorker" in navigator) {
+    const swPath = "service-worker.js";
+    navigator.serviceWorker.register(swPath)
+        .then(reg => {
+            console.log("Service Worker aktif:", reg.scope);
+            // Varsa güncellemeyi hemen kontrol et
+            reg.update();
+        })
         .catch(err => console.warn("SW uyarısı:", err));
 }
 

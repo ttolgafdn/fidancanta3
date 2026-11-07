@@ -109,7 +109,7 @@ function loadSuppliersOverview() {
 
             const card = document.createElement("div");
             card.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;";
-            card.onclick = () => location.href = `toptanci.html?id=${s.id}`;
+            card.onclick = () => location.href = `./toptanci.html?id=${s.id}`;
             card.innerHTML = `
                 <div>
                     <strong style="font-size: 15px; color: var(--ink);">📦 ${s.name}</strong>
@@ -138,7 +138,7 @@ function loadSuppliersToMenu() {
             const btn = document.createElement("a");
             btn.className = "menu-item" + (s.id === supplierId ? " active" : "");
             btn.textContent = "📦 " + s.name;
-            btn.href = `toptanci.html?id=${s.id}`;
+            btn.href = `./toptanci.html?id=${s.id}`;
             list.appendChild(btn);
         });
     };
@@ -525,7 +525,7 @@ function saveNewSupplier() {
     req.onsuccess = (e) => {
         const newId = e.target.result;
         closeAddSupplierModal();
-        location.href = `toptanci.html?id=${newId}`;
+        location.href = `./toptanci.html?id=${newId}`;
     };
 }
 
@@ -545,6 +545,6 @@ function deleteCurrentSupplier() {
 
     tx.oncomplete = () => {
         alert("Toptancı ve tüm hareketleri silindi ✅");
-        location.href = "toptanci.html";
+        location.href = "./toptanci.html";
     };
 }
