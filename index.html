@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <title>Kasa · Fidan Çanta</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+    <header class="topbar">
+        <button class="menu-btn" type="button" onclick="toggleMenu()" aria-label="Menüyü aç"><span></span></button>
+        <div class="brand">
+            <span class="brand-logo"><img src="logo.png" alt="Fidan Çanta"></span>
+            <span class="brand-text">
+                <span class="brand-name">FİDAN ÇANTA</span>
+                <span class="brand-sub">Kasa</span>
+            </span>
+        </div>
+    </header>
+
+    <nav class="side-menu" id="sideMenu">
+        <div class="menu-head">
+            <span class="brand-logo"><img src="logo.png" alt=""></span>
+            <span class="brand-name">FİDAN ÇANTA</span>
+        </div>
+        <div class="menu-scroll">
+            <a class="menu-item active" href="index.html">Kasa</a>
+            <a class="menu-item" href="musteri.html">Müşteriler / Alacaklar</a>
+            <a class="menu-item" href="toptanci.html">Toptancılar / Borçlar</a>
+        </div>
+        <div class="menu-footer">
+            <button type="button" class="menu-item" onclick="exportData()">Tüm Verileri Yedekle</button>
+            <button type="button" class="menu-item" onclick="importData()">Yedekten Geri Yükle</button>
+        </div>
+    </nav>
+    <div class="menu-overlay" onclick="toggleMenu()"></div>
+
+    <main class="page">
+
+        <section class="card">
+            <div class="button-row">
+                <button type="button" class="btn btn-secondary" onclick="location.href='aylik.html'">📅 Aylık Hesap</button>
+                <button type="button" class="btn btn-secondary" onclick="location.href='yillik.html'">📊 Yıllık Hesap</button>
+            </div>
+        </section>
+
+        <!-- Dükkan Genel Bakiye Durumu (Alacak / Borç Özeti) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+            <div class="card" style="margin-bottom: 0; padding: 12px; cursor: pointer; border-left: 3px solid var(--positive);" onclick="location.href='musteri.html'">
+                <div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Toplam Alacak</div>
+                <div id="homeTotalReceivable" style="font-size: 17px; font-weight: 800; color: var(--positive); margin-top: 4px;" class="money">0,00 ₺</div>
+                <div style="font-size: 10px; color: var(--text-3); margin-top: 2px;">Müşterilerden ›</div>
+            </div>
+            <div class="card" style="margin-bottom: 0; padding: 12px; cursor: pointer; border-left: 3px solid var(--accent);" onclick="location.href='toptanci.html'">
+                <div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Toplam Borç</div>
+                <div id="homeTotalPayable" style="font-size: 17px; font-weight: 800; color: var(--accent); margin-top: 4px;" class="money">0,00 ₺</div>
+                <div style="font-size: 10px; color: var(--text-3); margin-top: 2px;">Toptancılara ›</div>
+            </div>
+        </div>
+
+        <section class="card">
+            <h2 class="card-title">Tarih</h2>
+            <div class="date-nav">
+                <button type="button" class="date-step" onclick="changeDay(-1)" aria-label="Önceki gün">‹</button>
+                <input type="date" id="currentDate" onchange="onDateChange()">
+                <button type="button" class="date-step" onclick="changeDay(1)" aria-label="Sonraki gün">›</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2 class="card-title">Satış Girişi</h2>
+            <div class="form">
+                <div class="field-row">
+                    <label class="field">
+                        <span class="field-label">Ödeme Şekli</span>
+                        <select id="payment">
+                            <option value="cash">Nakit</option>
+                            <option value="visa">Visa (Kart)</option>
+                            <option value="transfer">Havale / EFT</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span class="field-label">Tutar (₺)</span>
+                        <input type="text" id="amount" inputmode="numeric" placeholder="0" />
+                    </label>
+                </div>
+
+                <label class="field">
+                    <span class="field-label">Açıklama (İsteğe Bağlı)</span>
+                    <input type="text" id="description" placeholder="Örn: Sırt çantası satışı, fermuar tamiri..." />
+                </label>
+
+                <div class="button-row">
+                    <button type="button" id="removeBtn" class="btn btn-secondary" onclick="removeAmount()">Tutarı Düş</button>
+                    <button type="button" class="btn btn-primary" onclick="save()">Kaydet</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2 class="card-title">Gün Toplamı</h2>
+            <div class="total-row">
+                <span>Nakit</span>
+                <span id="cash">0 ₺</span>
+            </div>
+            <div class="total-row">
+                <span>Visa</span>
+                <span id="visa">0 ₺</span>
+            </div>
+            <div class="total-row">
+                <span>Havale</span>
+                <span id="transfer">0 ₺</span>
+            </div>
+            <div class="total-row grand">
+                <span>Toplam</span>
+                <span id="balance">0 ₺</span>
+            </div>
+        </section>
+
+        <button type="button" id="clearDayBtn" class="btn btn-danger-outline btn-block" onclick="clearDay()">
+            Seçili Günün Kayıtlarını Temizle
+        </button>
+
+    </main>
+
+    <script src="common.js"></script>
+    <script src="app.js"></script>
+
+</body>
+
+</html>

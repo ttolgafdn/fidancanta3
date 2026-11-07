@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <title>Yıllık Hesap · Fidan Çanta</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="topbar">
+        <button class="menu-btn" type="button" onclick="toggleMenu()" aria-label="Menüyü aç"><span></span></button>
+        <div class="brand">
+            <span class="brand-logo"><img src="logo.png" alt="Fidan Çanta"></span>
+            <span class="brand-text">
+                <span class="brand-name">FİDAN ÇANTA</span>
+                <span class="brand-sub">Yıllık Hesap</span>
+            </span>
+        </div>
+    </header>
+
+    <nav class="side-menu" id="sideMenu">
+        <div class="menu-head">
+            <span class="brand-logo"><img src="logo.png" alt=""></span>
+            <span class="brand-name">FİDAN ÇANTA</span>
+        </div>
+        <div class="menu-scroll">
+            <a class="menu-item" href="index.html">Kasa</a>
+            <a class="menu-item" href="musteri.html">Müşteriler / Alacaklar</a>
+            <a class="menu-item" href="toptanci.html">Toptancılar / Borçlar</a>
+        </div>
+        <div class="menu-footer">
+            <button type="button" class="menu-item" onclick="exportData()">Tüm Verileri Yedekle</button>
+            <button type="button" class="menu-item" onclick="importData()">Yedekten Geri Yükle</button>
+        </div>
+    </nav>
+    <div class="menu-overlay" onclick="toggleMenu()"></div>
+
+    <main class="page">
+
+        <section class="card">
+            <label class="field">
+                <span class="field-label">Yıl Seçin (yılın herhangi bir ayını seçmeniz yeterli)</span>
+                <input type="month" id="yearSelector" onchange="loadYearlySummary()">
+            </label>
+        </section>
+
+        <section class="card card-flush">
+            <h2 class="card-title">Aylara Göre Kasa</h2>
+            <div class="table-responsive">
+                <table id="yearlyTable">
+                    <thead>
+                        <tr>
+                            <th>Ay</th>
+                            <th>Nakit</th>
+                            <th>Visa</th>
+                            <th>Havale</th>
+                            <th>Toplam</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                    <tfoot>
+                        <tr>
+                            <td>Genel Toplam</td>
+                            <td id="yearCash">0 ₺</td>
+                            <td id="yearVisa">0 ₺</td>
+                            <td id="yearTransfer">0 ₺</td>
+                            <td id="yearAll">0 ₺</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="common.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

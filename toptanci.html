@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <title>Toptancılar / Borçlar · Fidan Çanta</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+    <header class="topbar">
+        <button class="menu-btn" type="button" onclick="toggleMenu()" aria-label="Menüyü aç"><span></span></button>
+        <div class="brand">
+            <span class="brand-logo"><img src="logo.png" alt="Fidan Çanta"></span>
+            <span class="brand-text">
+                <span class="brand-name">FİDAN ÇANTA</span>
+                <span class="brand-sub">Toptancılar / Borçlar</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- ====================== -->
+    <!-- SOL PANEL -->
+    <!-- ====================== -->
+    <nav class="side-menu" id="sideMenu">
+        <div class="menu-head">
+            <span class="brand-logo"><img src="logo.png" alt=""></span>
+            <span class="brand-name">FİDAN ÇANTA</span>
+        </div>
+        <div class="menu-scroll">
+            <a class="menu-item" href="index.html">Kasa</a>
+            <a class="menu-item" href="musteri.html">Müşteriler / Alacaklar</a>
+            <a class="menu-item active" href="toptanci.html">Toptancılar / Borçlar</a>
+
+            <div class="menu-section">Toptancı Listesi</div>
+            <button type="button" class="menu-item add" onclick="openAddSupplierModal()">+ Yeni Toptancı Ekle</button>
+            <div id="supplierList"></div>
+        </div>
+        <div class="menu-footer">
+            <button type="button" class="menu-item" onclick="exportData()">Tüm Verileri Yedekle</button>
+            <button type="button" class="menu-item" onclick="importData()">Yedekten Geri Yükle</button>
+        </div>
+    </nav>
+    <div class="menu-overlay" onclick="toggleMenu()"></div>
+
+    <main class="page">
+
+        <!-- Toptancı Seçilmediğinde Gösterilecek Liste Kartı -->
+        <div id="noSupplierCard" class="card" style="display: none;">
+            <div class="items-header">
+                <div>
+                    <h2 class="card-title" style="margin: 0;">Toptancı Rehberi & Borçlarımız</h2>
+                    <div class="page-desc">İşlem yapmak için bir toptancı seçin veya yeni ekleyin.</div>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" onclick="openAddSupplierModal()">+ Toptancı Ekle</button>
+            </div>
+            <div id="suppliersOverviewList" style="margin-top: 14px; display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+
+        <!-- Toptancı Seçildiğinde Gösterilecek Çalışma Alanı -->
+        <div id="supplierActiveArea" style="display: none;">
+
+            <div class="page-head" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h2 id="supplierTitle" class="page-title">Toptancı Adı</h2>
+                    <div class="page-desc">Toptancı Cari Hesabı & Gelen Mal Takibi</div>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="location.href='toptanci.html'">‹ Toptancı Değiştir</button>
+            </div>
+
+            <!-- Güncel Borç / Bakiye Kartı -->
+            <section class="card balance-card">
+                <div>
+                    <div class="balance-label">Güncel Borcumuz (Bakiye)</div>
+                    <div style="font-size: 11px; color: var(--text-3); margin-top: 2px;">(Toptancıya ödenecek tutar)</div>
+                </div>
+                <span id="totalDebt" class="balance-value">0,00 ₺</span>
+            </section>
+
+            <!-- İŞLEM EKLEME FORMU -->
+            <section class="card">
+                <!-- Sekmeler: Mal Alındı (Gelen İrsaliye) / Ödeme Yapıldı -->
+                <div class="button-row" style="margin-bottom: 14px;">
+                    <button type="button" id="tabDispatchBtn" class="btn btn-primary" onclick="switchActionTab('dispatch')">📦 Mal Alındı (İrsaliye)</button>
+                    <button type="button" id="tabPaymentBtn" class="btn btn-secondary" onclick="switchActionTab('payment')">💳 Ödeme Yapıldı</button>
+                </div>
+
+                <div class="form">
+                    <label class="field">
+                        <span class="field-label">İşlem Tarihi</span>
+                        <input type="date" id="currentDate">
+                    </label>
+
+                    <!-- SEÇENEK 1: MAL ALINDI / İRSALİYE BÖLÜMÜ -->
+                    <div id="dispatchSection">
+                        <div class="items-card">
+                            <div class="items-header">
+                                <h4>İrsaliye Kalemleri (Gelen Mal / Malzeme)</h4>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="addItemRow()">+ Satır Ekle</button>
+                            </div>
+                            
+                            <!-- Dinamik Satırlar Buraya Gelir -->
+                            <div id="itemsContainer"></div>
+
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--border);">
+                                <span style="font-size: 13px; font-weight: 600; color: var(--text-2);">Kalemler Toplamı:</span>
+                                <strong id="itemsSumDisplay" style="font-size: 15px; color: var(--accent);">0,00 ₺</strong>
+                            </div>
+                        </div>
+
+                        <div class="divider-text">VEYA DİREKT TUTAR GİRİN</div>
+
+                        <label class="field">
+                            <span class="field-label">Alınan Mal Tutarı (₺)</span>
+                            <input type="number" step="0.01" inputmode="decimal" placeholder="Kalem girilmediyse buraya tutar yazabilirsiniz" id="total" oninput="onManualTotalInput()">
+                        </label>
+                    </div>
+
+                    <!-- SEÇENEK 2: ÖDEME YAPILDI BÖLÜMÜ -->
+                    <div id="paymentSection" style="display: none;">
+                        <label class="field">
+                            <span class="field-label">Ödenen Tutar (₺)</span>
+                            <input type="number" step="0.01" inputmode="decimal" placeholder="0.00" id="paid">
+                        </label>
+                        <label class="field">
+                            <span class="field-label">Ödeme Yolu</span>
+                            <select id="paymentMethod">
+                                <option value="Nakit">Nakit</option>
+                                <option value="Havale/EFT">Havale / EFT</option>
+                                <option value="Kredi Kartı">Kredi Kartı</option>
+                                <option value="Çek / Senet">Çek / Senet</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <!-- ORTAK NOT & RESİM -->
+                    <label class="field">
+                        <span class="field-label">Açıklama / İrsaliye Notu</span>
+                        <textarea id="waybillText" rows="2" placeholder="Örn: Fermuar ve astar malzemeleri teslim alındı..."></textarea>
+                    </label>
+
+                    <label class="file-upload-btn">
+                        📷 İrsaliye / Fiş Resmi Ekle (İsteğe Bağlı)
+                        <input type="file" id="waybillImage" accept="image/*" style="display:none;" onchange="previewWaybill()">
+                    </label>
+                    <div style="position: relative;">
+                        <img id="waybillPreview" class="image-preview" alt="İrsaliye Önizleme">
+                        <button type="button" id="removeImgBtn" class="btn btn-sm btn-danger-outline" style="display:none; margin: 4px auto 8px;" onclick="removeUploadedImage()">Resmi Kaldır</button>
+                    </div>
+
+                    <button type="button" class="btn btn-primary btn-block" style="font-size: 16px; margin-top: 6px;" onclick="addRecord()">Kaydet</button>
+                </div>
+            </section>
+
+            <!-- HAREKETLER (CARİ EKSTRE) TABLOSU -->
+            <section class="card card-flush">
+                <div class="items-header" style="padding: 14px 16px 0;">
+                    <h2 class="card-title" style="margin: 0;">Hesap Hareketleri & İrsaliyeler</h2>
+                    <span style="font-size: 11px; color: var(--text-3);">(Fiş için satıra dokunun)</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table" id="summaryTable">
+                        <thead>
+                            <tr>
+                                <th>Tarih</th>
+                                <th>Alınan Mal</th>
+                                <th>Ödenen</th>
+                                <th>Kalan Borç</th>
+                                <th style="text-align: center;">Fiş</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button type="button" onclick="deleteCurrentSupplier()" class="btn btn-danger-outline btn-block">
+                    🗑️ Toptancıyı Sil
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- TEKLİF FİŞİ / İRSALİYE GÖRÜNÜMÜ MODALI (Ekteki Formata Birebir) -->
+    <div id="dayDetailsModal" class="modal">
+        <div class="modal-content">
+            <!-- common.js içerisindeki renderWaybillReceipt burayı doldurur -->
+        </div>
+    </div>
+
+    <!-- YENİ TOPTANCI EKLEME PENCERESİ -->
+    <div id="addSupplierModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" onclick="closeAddSupplierModal()">&times;</span>
+            <h3 class="modal-title">Yeni Toptancı Ekle</h3>
+            <div class="form" style="margin-top: 14px;">
+                <label class="field">
+                    <span class="field-label">Toptancı / Tedarikçi Firma Adı</span>
+                    <input type="text" id="newSupplierName" placeholder="Örn: Candan Toptan Tuhafiye">
+                </label>
+                <button type="button" class="btn btn-primary btn-block" onclick="saveNewSupplier()">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================== -->
+    <!-- SCRIPT'LER -->
+    <!-- ====================== -->
+    <script src="common.js"></script>
+    <script src="app.js"></script>
+    <script src="toptanci.js"></script>
+
+</body>
+
+</html>
