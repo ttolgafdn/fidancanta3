@@ -394,7 +394,11 @@ function loadRecords() {
     tx.objectStore("customerRecords").getAll().onsuccess = e => {
         const records = (e.target.result || [])
             .filter(r => r && r.customerId === customerId)
-            .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+            .sort((a, b) => {
+                const dateDiff = new Date(a.date || 0) - new Date(b.date || 0);
+                if (dateDiff !== 0) return dateDiff;
+                return (a.id || 0) - (b.id || 0);
+            });
 
         if (records.length === 0) {
             tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Henüz bir hareket veya irsaliye kaydı bulunmuyor.</td></tr>`;
@@ -434,9 +438,14 @@ function loadRecords() {
                     ${formatTL(runningDebt)}
                 </td>
                 <td style="text-align: center;">
-                    <button class="view-btn" title="İrsaliye Fişini Görüntüle" onclick="event.stopPropagation(); openDayDetailsModal(${r.id})">
-                        ${badge || "🧾"}
-                    </button>
+                    <div style="display: inline-flex; gap: 6px; align-items: center; justify-content: center;">
+                        <button type="button" class="view-btn" title="İrsaliye Fişini Görüntüle" onclick="event.stopPropagation(); openDayDetailsModal(${r.id})">
+                            ${badge || "🧾"}
+                        </button>
+                        <button type="button" class="view-btn" style="font-size: 16px !important;" title="Hareketi / İrsaliyeyi Düzenle" onclick="event.stopPropagation(); editRecordById(${r.id})">
+                            ✏️
+                        </button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -458,6 +467,48 @@ function openDayDetailsModal(recordId) {
     renderWaybillReceipt(record, { type: "Müşteri", name: partyName });
 }
 
+// Fiş modalı / satır üzerinden düzenleme fonksiyonu
+window.editRecordById = function(recordId) {
+    if (!customerDBReady || !customerId) return;
+
+    const tx = customerDB.transaction("customerRecords", "readonly");
+    tx.objectStore("customerRecords").get(recordId).onsuccess = (e) => {
+        const record = e.target.result || window.currentRenderedRecords.find(r => r.id === recordId);
+        if (!record) return alert("Düzenlenecek kayıt bulunamadı.");
+
+        openPartyRecordEditModal(record, {
+            partyType: "Müşteri",
+            partyName: currentCustomerData ? currentCustomerData.name : "Müşteri",
+            dispatchTabLabel: "📦 Mal Verildi (İrsaliye)",
+            paymentTabLabel: "💰 Tahsilat Alındı",
+            itemsTitle: "İrsaliye Kalemleri (Ürün / Mal Girişi)",
+            itemPlaceholder: "Ürün Adı / Cinsi (Örn: Gizli Burs Vidalı)",
+            totalLabel: "Toplam Mal Tutarı (₺)",
+            paidLabel: "Alınan Tahsilat Tutarı (₺)",
+            unitOptions: ["AD", "DZ", "PK", "KG", "MT", "ÇİFT"],
+            onSave: (updatedFields) => {
+                const writeTx = customerDB.transaction("customerRecords", "readwrite");
+                const updatedRecord = {
+                    ...record,
+                    ...updatedFields,
+                    id: record.id,
+                    customerId
+                };
+                writeTx.objectStore("customerRecords").put(updatedRecord);
+                writeTx.oncomplete = () => {
+                    closePartyRecordEditModal();
+                    loadRecords();
+                    alert("Hareket ve irsaliye güncellendi ✅");
+                };
+                writeTx.onerror = () => {
+                    alert("Güncelleme sırasında hata oluştu ❌");
+                };
+            },
+            onDelete: (id) => window.deleteRecordById(id)
+        });
+    };
+};
+
 // Fiş modalı içindeki silme fonksiyonu
 window.deleteRecordById = function(recordId) {
     if (!confirm("Bu hareket ve irsaliye kaydı tamamen silinecek. Emin misiniz?")) return;
@@ -467,6 +518,7 @@ window.deleteRecordById = function(recordId) {
 
     tx.oncomplete = () => {
         closeDayDetailsModal();
+        closePartyRecordEditModal();
         loadRecords();
         alert("Kayıt başarıyla silindi ✅");
     };

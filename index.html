@@ -7,7 +7,7 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ffffff">
     <title>Kasa · Fidan Çanta</title>
-    <link rel="stylesheet" href="style.css?v=4" />
+    <link rel="stylesheet" href="style.css?v=8" />
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister();});}).catch(function(){});
@@ -92,19 +92,36 @@
                     </label>
                     <label class="field">
                         <span class="field-label">Tutar (₺)</span>
-                        <input type="text" id="amount" inputmode="numeric" placeholder="0" />
+                        <input type="text" id="amount" inputmode="decimal" placeholder="0" />
                     </label>
                 </div>
+
+                <label class="field">
+                    <span class="field-label">Müşteri Adı (İsteğe Bağlı)</span>
+                    <input type="text" id="customerName" list="kasaCustomerSuggestions" placeholder="Örn: Ahmet Yılmaz veya peşin müşteri..." autocomplete="off" />
+                    <datalist id="kasaCustomerSuggestions"></datalist>
+                </label>
 
                 <label class="field">
                     <span class="field-label">Açıklama (İsteğe Bağlı)</span>
                     <input type="text" id="description" placeholder="Örn: Sırt çantası satışı, fermuar tamiri..." />
                 </label>
 
+                <label class="file-upload-btn">
+                    📷 Satış / Fiş Fotoğrafı Ekle (İsteğe Bağlı)
+                    <input type="file" id="kasaPhotoInput" accept="image/*" style="display:none;" onchange="previewKasaPhoto()">
+                </label>
+                <div style="position: relative;">
+                    <img id="kasaPhotoPreview" class="image-preview" alt="Satış Fotoğrafı Önizleme">
+                    <button type="button" id="removeKasaPhotoBtn" class="btn btn-sm btn-danger-outline" style="display:none; margin: 4px auto 8px;" onclick="removeKasaPhoto()">Resmi Kaldır</button>
+                </div>
+
                 <div class="button-row">
                     <button type="button" id="removeBtn" class="btn btn-secondary" onclick="removeAmount()">Tutarı Düş</button>
                     <button type="button" class="btn btn-primary" onclick="save()">Kaydet</button>
                 </div>
+
+                <div id="kasaSaveFeedback" style="display: none; text-align: center; font-size: 13px; font-weight: 600; color: var(--positive); background: var(--positive-soft); padding: 8px 10px; border-radius: var(--radius-sm);"></div>
             </div>
         </section>
 
@@ -128,14 +145,144 @@
             </div>
         </section>
 
-        <button type="button" id="clearDayBtn" class="btn btn-danger-outline btn-block" onclick="clearDay()">
+        <section class="card card-flush" id="kasaDayRecordsCard">
+            <div class="items-header" style="padding: 14px 16px 10px; margin-bottom: 0;">
+                <div>
+                    <h2 class="card-title" style="margin: 0;">Günün Satış Kayıtları</h2>
+                    <span style="font-size: 11px; color: var(--text-3);">(Düzenlemek veya fotoğrafı görmek için satıra dokunun)</span>
+                </div>
+                <span id="kasaDayRecordsCount" style="font-size: 12px; color: var(--text-3); font-weight: 600;">0 kayıt</span>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table" id="kasaDayRecordsTable">
+                    <thead>
+                        <tr>
+                            <th>Tarih</th>
+                            <th class="col-left">Müşteri</th>
+                            <th class="col-left">Ödeme</th>
+                            <th class="col-wrap">Açıklama</th>
+                            <th>Tutar</th>
+                            <th class="col-center">Detay</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kasaDayRecordsBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <button type="button" id="clearDayBtn" class="btn btn-danger-outline btn-block" style="margin-bottom: 14px;" onclick="clearDay()">
             Seçili Günün Kayıtlarını Temizle
         </button>
 
+        <section class="card card-flush" id="kasaSearchCard">
+            <div style="padding: 16px;">
+                <h2 class="card-title" style="margin-bottom: 10px;">🔍 Müşteri Adına Göre Satış Arama</h2>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="kasaCustomerSearch" list="kasaCustomerSuggestions" placeholder="Müşteri adı yazın (tüm tarihlerde arar)..." autocomplete="off" oninput="onKasaSearchInput()" style="flex: 1;" />
+                    <button type="button" id="clearKasaSearchBtn" class="btn btn-secondary btn-sm" style="display: none; min-height: 44px; flex-shrink: 0;" onclick="clearKasaSearch()">Temizle</button>
+                </div>
+                <div id="kasaSearchHint" style="font-size: 12px; color: var(--text-3); margin-top: 8px;">
+                    Müşteri adını yazdığınızda o müşteriye yapılan tüm satışlar tarih ve tutarlarıyla satır satır listelenir.
+                </div>
+            </div>
+
+            <div id="kasaSearchResultsWrap" style="display: none; border-top: 1px solid var(--border);">
+                <div class="items-header" style="padding: 12px 16px 8px; margin-bottom: 0; background: var(--surface-2);">
+                    <div>
+                        <strong id="kasaSearchSummaryTitle" style="font-size: 13px; color: var(--ink);">Arama Sonuçları</strong>
+                        <div id="kasaSearchBreakdown" style="font-size: 11px; color: var(--text-3); margin-top: 2px;"></div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div id="kasaSearchTotal" class="money" style="font-size: 15px; font-weight: 800; color: var(--accent);">0,00 ₺</div>
+                        <div id="kasaSearchCount" style="font-size: 11px; color: var(--text-3); font-weight: 600;">0 kayıt</div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table" id="kasaSearchTable">
+                        <thead>
+                            <tr>
+                                <th>Tarih</th>
+                                <th class="col-left">Müşteri</th>
+                                <th class="col-left">Ödeme</th>
+                                <th class="col-wrap">Açıklama</th>
+                                <th>Tutar</th>
+                                <th class="col-center">Detay</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kasaSearchResultsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
     </main>
 
-    <script src="common.js?v=4"></script>
-    <script src="app.js?v=4"></script>
+    <!-- KASA SATIŞ DETAY & DÜZENLEME MODALI -->
+    <div id="kasaEditModal" class="modal" onclick="if(event.target === this) closeKasaEditModal()">
+        <div class="modal-content">
+            <span class="close" onclick="closeKasaEditModal()">&times;</span>
+            <h3 class="modal-title">Satış Kaydını Düzenle</h3>
+            <div class="form">
+                <div class="field-row">
+                    <label class="field">
+                        <span class="field-label">Tarih</span>
+                        <input type="date" id="editKasaDate" />
+                    </label>
+                    <label class="field">
+                        <span class="field-label">Ödeme Şekli</span>
+                        <select id="editKasaPayment">
+                            <option value="cash">Nakit</option>
+                            <option value="visa">Visa (Kart)</option>
+                            <option value="transfer">Havale / EFT</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="field-row">
+                    <label class="field">
+                        <span class="field-label">Tutar (₺)</span>
+                        <input type="text" id="editKasaAmount" inputmode="decimal" placeholder="0" />
+                    </label>
+                    <label class="field">
+                        <span class="field-label">Müşteri Adı</span>
+                        <input type="text" id="editKasaCustomerName" list="kasaCustomerSuggestions" placeholder="Müşteri adı..." autocomplete="off" />
+                    </label>
+                </div>
+
+                <label class="field">
+                    <span class="field-label">Açıklama</span>
+                    <input type="text" id="editKasaDescription" placeholder="Açıklama..." />
+                </label>
+
+                <label class="file-upload-btn">
+                    📷 Fotoğraf Ekle / Değiştir
+                    <input type="file" id="editKasaPhotoInput" accept="image/*" style="display:none;" onchange="previewEditKasaPhoto()">
+                </label>
+
+                <div id="editKasaPhotoWrap" style="display: none; text-align: center;">
+                    <img id="editKasaPhotoPreview" class="image-preview" style="display: block; cursor: pointer;" alt="Satış Fotoğrafı" title="Büyütmek için dokunun" onclick="openKasaImageFull(this.src)">
+                    <div style="display: flex; gap: 8px; justify-content: center; margin-top: 6px;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="openKasaImageFull(document.getElementById('editKasaPhotoPreview').src)">🔍 Büyüt</button>
+                        <button type="button" class="btn btn-danger-outline btn-sm" onclick="removeEditKasaPhoto()">🗑️ Resmi Kaldır</button>
+                    </div>
+                </div>
+
+                <div class="button-row" style="margin-top: 6px;">
+                    <button type="button" class="btn btn-danger-outline" onclick="deleteKasaRecord()">🗑️ Kaydı Sil</button>
+                    <button type="button" class="btn btn-primary" onclick="saveKasaRecordEdit()">💾 Güncelle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAM EKRAN FOTOĞRAF ÖNİZLEME -->
+    <div id="kasaLightboxModal" class="kasa-lightbox" onclick="closeKasaImageFull()">
+        <img id="kasaLightboxImg" src="" alt="Satış Fotoğrafı Tam Boy" onclick="event.stopPropagation()" />
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeKasaImageFull()">Kapat</button>
+    </div>
+
+    <script src="common.js?v=9"></script>
+    <script src="app.js?v=9"></script>
 
 </body>
 

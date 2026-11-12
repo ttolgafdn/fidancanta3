@@ -690,6 +690,89 @@ input[type="month"] {
     color: var(--text);
 }
 
+.data-table th.col-left,
+.data-table td.col-left {
+    text-align: left;
+}
+
+.data-table th.col-center,
+.data-table td.col-center {
+    text-align: center;
+}
+
+.data-table th.col-wrap,
+.data-table td.col-wrap {
+    text-align: left;
+    white-space: normal;
+    min-width: 120px;
+    max-width: 220px;
+    word-break: break-word;
+}
+
+.pay-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+}
+
+.pay-badge.pay-cash {
+    background: var(--positive-soft);
+    border-color: rgba(46, 106, 69, 0.25);
+    color: var(--positive);
+}
+
+.pay-badge.pay-visa {
+    background: var(--accent-soft);
+    border-color: rgba(155, 28, 34, 0.25);
+    color: var(--accent);
+}
+
+.pay-badge.pay-transfer {
+    background: #eef3f8;
+    border-color: rgba(44, 82, 130, 0.22);
+    color: #2c5282;
+}
+
+.data-table tbody tr.clickable-row {
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.data-table tbody tr.clickable-row:hover {
+    background: var(--surface-2);
+}
+
+.kasa-lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    background: rgba(20, 20, 22, 0.88);
+    padding: 20px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.kasa-lightbox.open {
+    display: flex;
+}
+
+.kasa-lightbox img {
+    max-width: 100%;
+    max-height: 82vh;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    object-fit: contain;
+    background: #fff;
+}
+
 /* Tablodaki ⋮ detay düğmesi (JS içindeki satır içi stili ezer) */
 .view-btn {
     width: 34px !important;

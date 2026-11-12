@@ -7,7 +7,7 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ffffff">
     <title>Toptancılar / Borçlar · Fidan Çanta</title>
-    <link rel="stylesheet" href="style.css?v=4" />
+    <link rel="stylesheet" href="style.css?v=10" />
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister();});}).catch(function(){});
@@ -166,7 +166,7 @@
             <section class="card card-flush">
                 <div class="items-header" style="padding: 14px 16px 0;">
                     <h2 class="card-title" style="margin: 0;">Hesap Hareketleri & İrsaliyeler</h2>
-                    <span style="font-size: 11px; color: var(--text-3);">(Fiş için satıra dokunun)</span>
+                    <span style="font-size: 11px; color: var(--text-3);">(Fiş için satıra, düzenlemek için ✏️ simgesine dokunun)</span>
                 </div>
                 <div class="table-responsive">
                     <table class="data-table" id="summaryTable">
@@ -176,7 +176,7 @@
                                 <th>Alınan Mal</th>
                                 <th>Ödenen</th>
                                 <th>Kalan Borç</th>
-                                <th style="text-align: center;">Fiş</th>
+                                <th style="text-align: center;">Fiş / Düzenle</th>
                             </tr>
                         </thead>
                         <tbody id="recordBody"></tbody>
@@ -200,6 +200,9 @@
         </div>
     </div>
 
+    <!-- HAREKET / İRSALİYE DÜZENLEME MODALI -->
+    <div id="partyEditModal" class="modal"></div>
+
     <!-- YENİ TOPTANCI EKLEME PENCERESİ -->
     <div id="addSupplierModal" class="modal">
         <div class="modal-content" style="max-width: 400px;">
@@ -218,9 +221,9 @@
     <!-- ====================== -->
     <!-- SCRIPT'LER -->
     <!-- ====================== -->
-    <script src="common.js?v=4"></script>
-    <script src="app.js?v=4"></script>
-    <script src="toptanci.js?v=4"></script>
+    <script src="common.js?v=10"></script>
+    <script src="app.js?v=10"></script>
+    <script src="toptanci.js?v=10"></script>
 
 </body>
 

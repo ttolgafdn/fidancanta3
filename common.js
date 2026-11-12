@@ -128,10 +128,49 @@ function toggleMenu() {
     }
 }
 
+// HTML metin kaçışı
+function escapeHtml(str) {
+    return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+// Tam ekran fotoğraf önizleme (Fiş / İrsaliye düzenleme ortak)
+function openSharedLightbox(src) {
+    if (!src) return;
+    let lightbox = document.getElementById("sharedLightboxModal");
+    if (!lightbox) {
+        lightbox = document.createElement("div");
+        lightbox.id = "sharedLightboxModal";
+        lightbox.className = "kasa-lightbox";
+        lightbox.innerHTML = `
+            <img id="sharedLightboxImg" src="" alt="Tam Boy Görsel" onclick="event.stopPropagation()" />
+            <button type="button" class="btn btn-secondary btn-sm" onclick="closeSharedLightbox()">Kapat</button>
+        `;
+        lightbox.addEventListener("click", closeSharedLightbox);
+        document.body.appendChild(lightbox);
+    }
+    const img = document.getElementById("sharedLightboxImg");
+    if (img) img.src = src;
+    lightbox.classList.add("open");
+}
+
+function closeSharedLightbox() {
+    const lightbox = document.getElementById("sharedLightboxModal");
+    const img = document.getElementById("sharedLightboxImg");
+    if (lightbox) lightbox.classList.remove("open");
+    if (img) img.src = "";
+}
+
 // Global Fiş / İrsaliye Modalını Açma (Teklif Fişi Formatında)
 function renderWaybillReceipt(record, partyInfo = {}) {
     const modal = document.getElementById("dayDetailsModal");
     if (!modal) return;
+
+    window._currentWaybillReceipt = { record, partyInfo };
 
     const isSupplier = partyInfo.type === "Toptancı";
     const titleText = isSupplier ? "GELEN MAL / İRSALİYE FİŞİ" : "SATIŞ / SEVK İRSALİYESİ";
@@ -144,8 +183,8 @@ function renderWaybillReceipt(record, partyInfo = {}) {
     if (hasItems) {
         items.forEach(item => {
             const qty = Number(item.qty || 0);
-            const unit = item.unit || "AD";
-            const name = item.name || "-";
+            const unit = escapeHtml(item.unit || "AD");
+            const name = escapeHtml(item.name || "-");
             const price = Number(item.price || 0);
             const total = Number(item.total || (qty * price));
             itemsHtml += `
@@ -162,6 +201,7 @@ function renderWaybillReceipt(record, partyInfo = {}) {
 
     const grandTotal = Number(record.total || 0);
     const paidAmount = Number(record.paid || 0);
+    const canEdit = typeof window.editRecordById === "function";
 
     const receiptHtml = `
         <div class="receipt-paper">
@@ -179,7 +219,7 @@ function renderWaybillReceipt(record, partyInfo = {}) {
                 </div>
                 <div class="receipt-party">
                     <span class="party-label">${partyLabel}</span>
-                    <span class="party-name">${partyInfo.name || "Belirtilmedi"}</span>
+                    <span class="party-name">${escapeHtml(partyInfo.name || "Belirtilmedi")}</span>
                 </div>
             </div>
 
@@ -222,7 +262,7 @@ function renderWaybillReceipt(record, partyInfo = {}) {
             ${record.waybillText ? `
                 <div class="receipt-note">
                     <span class="note-label">Not / Açıklama:</span>
-                    <div class="note-body">${record.waybillText}</div>
+                    <div class="note-body">${escapeHtml(record.waybillText)}</div>
                 </div>
             ` : ""}
 
@@ -230,15 +270,16 @@ function renderWaybillReceipt(record, partyInfo = {}) {
                 <div class="receipt-image-section">
                     <span class="note-label">📷 Eklenen Fiş / İrsaliye Fotoğrafı:</span>
                     <div class="receipt-image-wrap">
-                        <img src="${record.waybill}" alt="Fiş Görseli" onclick="window.open(this.src, '_blank')">
+                        <img src="${record.waybill}" alt="Fiş Görseli" onclick="openSharedLightbox(this.src)">
                     </div>
                 </div>
             ` : ""}
 
             <div class="receipt-footer" style="flex-wrap: wrap; gap: 8px;">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="shareReceiptViaWhatsApp(${JSON.stringify(record).replace(/"/g, '&quot;')}, '${(partyInfo.name || '').replace(/'/g, "\\'")}', '${partyInfo.type || ''}')">💬 WhatsApp ile Paylaş</button>
+                ${canEdit ? `<button type="button" class="btn btn-primary btn-sm" onclick="window.editRecordById(${Number(record.id)})">✏️ Düzenle</button>` : ""}
+                <button type="button" class="btn btn-secondary btn-sm" onclick="shareCurrentWaybillViaWhatsApp()">💬 WhatsApp ile Paylaş</button>
                 <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ Yazdır</button>
-                <button type="button" class="btn btn-danger-outline btn-sm" onclick="if(window.deleteRecordById) window.deleteRecordById(${record.id})">🗑️ Bu Hareketi Sil</button>
+                <button type="button" class="btn btn-danger-outline btn-sm" onclick="if(window.deleteRecordById) window.deleteRecordById(${Number(record.id)})">🗑️ Bu Hareketi Sil</button>
             </div>
         </div>
     `;
@@ -250,12 +291,358 @@ function renderWaybillReceipt(record, partyInfo = {}) {
             ${receiptHtml}
         `;
     }
+    modal.onclick = (e) => {
+        if (e.target === modal) closeDayDetailsModal();
+    };
     modal.style.display = "block";
+}
+
+function shareCurrentWaybillViaWhatsApp() {
+    const current = window._currentWaybillReceipt;
+    if (!current) return;
+    shareReceiptViaWhatsApp(current.record, current.partyInfo?.name || "", current.partyInfo?.type || "");
 }
 
 function closeDayDetailsModal() {
     const modal = document.getElementById("dayDetailsModal");
     if (modal) modal.style.display = "none";
+}
+
+// =========================================================
+// ORTAK CARİ HAREKET / İRSALİYE DÜZENLEME MODALI
+// (Müşteriler & Toptancılar)
+// =========================================================
+
+function closePartyRecordEditModal() {
+    const modal = document.getElementById("partyEditModal");
+    if (modal) {
+        modal.style.display = "none";
+        modal.innerHTML = "";
+    }
+}
+
+function openPartyRecordEditModal(record, config) {
+    if (!record || !config) return;
+    closeDayDetailsModal();
+
+    let modal = document.getElementById("partyEditModal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "partyEditModal";
+        modal.className = "modal";
+        document.body.appendChild(modal);
+    }
+
+    const UNIT_LABELS = {
+        AD: "Adet",
+        DZ: "Düzine",
+        PK: "Paket",
+        KG: "Kg",
+        MT: "Metre",
+        "ÇİFT": "Çift",
+        TOP: "Top"
+    };
+    const baseUnits = Array.isArray(config.unitOptions) && config.unitOptions.length > 0
+        ? config.unitOptions
+        : ["AD", "DZ", "PK", "KG", "MT", "ÇİFT"];
+
+    const hasDispatchData = Number(record.total || 0) > 0 || (Array.isArray(record.items) && record.items.length > 0);
+    const hasPaymentData = Number(record.paid || 0) > 0;
+    let editTab = (!hasDispatchData && hasPaymentData) ? "payment" : "dispatch";
+
+    let rawNote = String(record.waybillText || "");
+    let parsedMethod = "Nakit";
+    const methodMatch = rawNote.match(/\s*\[Ödeme:\s*([^\]]+)\]\s*$/);
+    if (methodMatch) {
+        parsedMethod = methodMatch[1].trim();
+        rawNote = rawNote.slice(0, methodMatch.index).trim();
+    }
+
+    const paymentMethods = ["Nakit", "Havale/EFT", "Kredi Kartı", "Çek / Senet"];
+    if (parsedMethod && !paymentMethods.includes(parsedMethod)) {
+        paymentMethods.push(parsedMethod);
+    }
+
+    let editWaybillBase64 = record.waybill || null;
+    let lastEditItemsSum = 0;
+
+    modal.innerHTML = `
+        <div class="modal-content">
+            <span class="close" id="peCloseBtn">&times;</span>
+            <h3 class="modal-title">✏️ ${escapeHtml(config.partyType || "Cari")} Hareketini Düzenle</h3>
+            ${config.partyName ? `<div style="font-size: 13px; color: var(--text-2); margin: -8px 0 12px; font-weight: 600;">${escapeHtml(config.partyName)}</div>` : ""}
+
+            <div class="button-row" style="margin-bottom: 14px;">
+                <button type="button" id="peTabDispatch" class="btn ${editTab === "dispatch" ? "btn-primary" : "btn-secondary"}">${escapeHtml(config.dispatchTabLabel)}</button>
+                <button type="button" id="peTabPayment" class="btn ${editTab === "payment" ? "btn-primary" : "btn-secondary"}">${escapeHtml(config.paymentTabLabel)}</button>
+            </div>
+
+            <div class="form">
+                <label class="field">
+                    <span class="field-label">İşlem Tarihi</span>
+                    <input type="date" id="peDate" value="${escapeHtml(record.date || "")}">
+                </label>
+
+                <div id="peDispatchSection" style="display: ${editTab === "dispatch" ? "block" : "none"};">
+                    <div class="items-card">
+                        <div class="items-header">
+                            <h4>${escapeHtml(config.itemsTitle || "İrsaliye Kalemleri")}</h4>
+                            <button type="button" id="peAddItemBtn" class="btn btn-secondary btn-sm">+ Satır Ekle</button>
+                        </div>
+                        <div id="peItemsContainer"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--border);">
+                            <span style="font-size: 13px; font-weight: 600; color: var(--text-2);">Kalemler Toplamı:</span>
+                            <strong id="peItemsSumDisplay" style="font-size: 15px; color: var(--accent);">0,00 ₺</strong>
+                        </div>
+                    </div>
+
+                    <div class="divider-text">VEYA DİREKT TUTAR GİRİN</div>
+
+                    <label class="field">
+                        <span class="field-label">${escapeHtml(config.totalLabel || "Toplam Mal Tutarı (₺)")}</span>
+                        <input type="number" step="0.01" inputmode="decimal" id="peTotal" placeholder="0.00" value="${Number(record.total || 0) > 0 ? Number(record.total) : ""}">
+                    </label>
+                </div>
+
+                <div id="pePaymentSection" style="display: ${editTab === "payment" ? "block" : "none"};">
+                    <label class="field">
+                        <span class="field-label">${escapeHtml(config.paidLabel || "Ödeme Tutarı (₺)")}</span>
+                        <input type="number" step="0.01" inputmode="decimal" id="pePaid" placeholder="0.00" value="${Number(record.paid || 0) > 0 ? Number(record.paid) : ""}">
+                    </label>
+                    <label class="field" style="margin-top: 12px;">
+                        <span class="field-label">Ödeme Yolu</span>
+                        <select id="pePaymentMethod">
+                            ${paymentMethods.map(m => `<option value="${escapeHtml(m)}"${m === parsedMethod ? " selected" : ""}>${escapeHtml(m)}</option>`).join("")}
+                        </select>
+                    </label>
+                </div>
+
+                <label class="field">
+                    <span class="field-label">Açıklama / İrsaliye Notu</span>
+                    <textarea id="peWaybillText" rows="2" placeholder="Açıklama veya not...">${escapeHtml(rawNote)}</textarea>
+                </label>
+
+                <label class="file-upload-btn">
+                    📷 İrsaliye / Fiş Fotoğrafı Ekle / Değiştir
+                    <input type="file" id="peWaybillImage" accept="image/*" style="display:none;">
+                </label>
+
+                <div id="pePhotoWrap" style="display: ${editWaybillBase64 ? "block" : "none"}; text-align: center;">
+                    <img id="peWaybillPreview" class="image-preview" style="display: block; cursor: pointer;" src="${editWaybillBase64 || ""}" alt="İrsaliye Önizleme" title="Büyütmek için dokunun">
+                    <div style="display: flex; gap: 8px; justify-content: center; margin-top: 6px;">
+                        <button type="button" id="peZoomImgBtn" class="btn btn-secondary btn-sm">🔍 Büyüt</button>
+                        <button type="button" id="peRemoveImgBtn" class="btn btn-danger-outline btn-sm">🗑️ Resmi Kaldır</button>
+                    </div>
+                </div>
+
+                <div class="button-row" style="margin-top: 6px;">
+                    <button type="button" id="peDeleteBtn" class="btn btn-danger-outline">🗑️ Kaydı Sil</button>
+                    <button type="button" id="peSaveBtn" class="btn btn-primary">💾 Güncelle</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const tabDispatchBtn = modal.querySelector("#peTabDispatch");
+    const tabPaymentBtn = modal.querySelector("#peTabPayment");
+    const dispatchSec = modal.querySelector("#peDispatchSection");
+    const paymentSec = modal.querySelector("#pePaymentSection");
+    const itemsContainer = modal.querySelector("#peItemsContainer");
+    const itemsSumDisplay = modal.querySelector("#peItemsSumDisplay");
+    const peTotal = modal.querySelector("#peTotal");
+    const pePaid = modal.querySelector("#pePaid");
+    const pePaymentMethod = modal.querySelector("#pePaymentMethod");
+    const peDate = modal.querySelector("#peDate");
+    const peWaybillText = modal.querySelector("#peWaybillText");
+    const peImageInput = modal.querySelector("#peWaybillImage");
+    const pePhotoWrap = modal.querySelector("#pePhotoWrap");
+    const pePreview = modal.querySelector("#peWaybillPreview");
+
+    function switchEditTab(tab) {
+        editTab = tab;
+        const isDispatch = tab === "dispatch";
+        tabDispatchBtn.className = isDispatch ? "btn btn-primary" : "btn btn-secondary";
+        tabPaymentBtn.className = isDispatch ? "btn btn-secondary" : "btn btn-primary";
+        dispatchSec.style.display = isDispatch ? "block" : "none";
+        paymentSec.style.display = isDispatch ? "none" : "block";
+    }
+
+    function recalcEditItemsSum(isUserChange = false) {
+        let sum = 0;
+        itemsContainer.querySelectorAll(".item-row").forEach(row => {
+            const qty = parseFloat(row.querySelector(".item-qty")?.value) || 0;
+            const price = parseFloat(row.querySelector(".item-price")?.value) || 0;
+            sum += qty * price;
+        });
+
+        itemsSumDisplay.textContent = formatTL(sum);
+        if (sum > 0) {
+            peTotal.value = sum.toFixed(2);
+        } else if (isUserChange && lastEditItemsSum > 0) {
+            peTotal.value = "";
+        }
+        lastEditItemsSum = sum;
+    }
+
+    function addEditItemRow(initialData = null, isUserAction = false) {
+        const rowDiv = document.createElement("div");
+        rowDiv.className = "item-row";
+
+        const initialUnit = initialData && initialData.unit ? String(initialData.unit) : "AD";
+        const unitList = baseUnits.includes(initialUnit) ? baseUnits : [...baseUnits, initialUnit];
+
+        rowDiv.innerHTML = `
+            <div class="item-row-top">
+                <input type="text" class="item-name" placeholder="${escapeHtml(config.itemPlaceholder || "Ürün Adı / Cinsi")}" style="flex: 1;">
+                <button type="button" class="item-remove-btn" title="Satırı Sil">✕</button>
+            </div>
+            <div class="item-row-grid">
+                <label class="field">
+                    <span class="field-label">Miktar / Adet</span>
+                    <input type="number" step="any" inputmode="decimal" class="item-qty" placeholder="0">
+                </label>
+                <label class="field">
+                    <span class="field-label">Birimi</span>
+                    <select class="item-unit">
+                        ${unitList.map(u => `<option value="${escapeHtml(u)}"${u === initialUnit ? " selected" : ""}>${escapeHtml(UNIT_LABELS[u] || u)}</option>`).join("")}
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field-label">Birim Fiyatı (₺)</span>
+                    <input type="number" step="0.01" inputmode="decimal" class="item-price" placeholder="0.00">
+                </label>
+            </div>
+            <div style="display: flex; justify-content: flex-end; align-items: baseline; gap: 6px; font-size: 13px;">
+                <span style="color: var(--text-3);">Satır Tutarı:</span>
+                <strong class="item-total" style="color: var(--ink); font-variant-numeric: tabular-nums;">0,00 ₺</strong>
+            </div>
+        `;
+
+        const nameEl = rowDiv.querySelector(".item-name");
+        const qtyEl = rowDiv.querySelector(".item-qty");
+        const unitEl = rowDiv.querySelector(".item-unit");
+        const priceEl = rowDiv.querySelector(".item-price");
+        const totalEl = rowDiv.querySelector(".item-total");
+        const removeBtn = rowDiv.querySelector(".item-remove-btn");
+
+        const updateRow = (triggerUser = true) => {
+            const qty = parseFloat(qtyEl.value) || 0;
+            const price = parseFloat(priceEl.value) || 0;
+            totalEl.textContent = formatTL(qty * price);
+            recalcEditItemsSum(triggerUser);
+        };
+
+        if (initialData) {
+            if (initialData.name) nameEl.value = initialData.name;
+            if (initialData.qty) qtyEl.value = initialData.qty;
+            if (initialData.price) priceEl.value = initialData.price;
+        }
+
+        nameEl.addEventListener("input", () => recalcEditItemsSum(true));
+        qtyEl.addEventListener("input", () => updateRow(true));
+        unitEl.addEventListener("change", () => updateRow(true));
+        priceEl.addEventListener("input", () => updateRow(true));
+        removeBtn.addEventListener("click", () => {
+            rowDiv.remove();
+            recalcEditItemsSum(true);
+        });
+
+        itemsContainer.appendChild(rowDiv);
+        updateRow(isUserAction);
+    }
+
+    const existingItems = Array.isArray(record.items) ? record.items : [];
+    if (existingItems.length > 0) {
+        existingItems.forEach(item => addEditItemRow(item, false));
+    } else {
+        addEditItemRow(null, false);
+    }
+
+    modal.querySelector("#peCloseBtn").addEventListener("click", closePartyRecordEditModal);
+    modal.onclick = (e) => {
+        if (e.target === modal) closePartyRecordEditModal();
+    };
+    tabDispatchBtn.addEventListener("click", () => switchEditTab("dispatch"));
+    tabPaymentBtn.addEventListener("click", () => switchEditTab("payment"));
+    modal.querySelector("#peAddItemBtn").addEventListener("click", () => addEditItemRow(null, true));
+
+    peImageInput.addEventListener("change", () => {
+        const file = peImageInput.files && peImageInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            editWaybillBase64 = ev.target.result;
+            pePreview.src = editWaybillBase64;
+            pePhotoWrap.style.display = "block";
+        };
+        reader.readAsDataURL(file);
+    });
+
+    pePreview.addEventListener("click", () => openSharedLightbox(editWaybillBase64));
+    modal.querySelector("#peZoomImgBtn").addEventListener("click", () => openSharedLightbox(editWaybillBase64));
+    modal.querySelector("#peRemoveImgBtn").addEventListener("click", () => {
+        editWaybillBase64 = null;
+        peImageInput.value = "";
+        pePreview.src = "";
+        pePhotoWrap.style.display = "none";
+    });
+
+    modal.querySelector("#peDeleteBtn").addEventListener("click", () => {
+        if (typeof config.onDelete === "function") {
+            config.onDelete(record.id);
+        }
+    });
+
+    modal.querySelector("#peSaveBtn").addEventListener("click", () => {
+        const dateVal = peDate.value;
+        if (!dateVal) return alert("Lütfen işlem tarihini seçin.");
+
+        let total = 0;
+        let paid = 0;
+        let items = [];
+        let waybillText = peWaybillText.value.trim();
+
+        if (editTab === "dispatch") {
+            itemsContainer.querySelectorAll(".item-row").forEach(r => {
+                const name = r.querySelector(".item-name")?.value.trim() || "";
+                const qty = parseFloat(r.querySelector(".item-qty")?.value) || 0;
+                const unit = r.querySelector(".item-unit")?.value || "AD";
+                const price = parseFloat(r.querySelector(".item-price")?.value) || 0;
+                const rowTotal = qty * price;
+                if (name || qty > 0 || price > 0) {
+                    items.push({ name, qty, unit, price, total: rowTotal });
+                }
+            });
+
+            const itemsSum = items.reduce((acc, it) => acc + Number(it.total || 0), 0);
+            const manualTotal = parseFloat(peTotal.value) || 0;
+            total = itemsSum > 0 ? itemsSum : manualTotal;
+
+            if (total <= 0 && !editWaybillBase64) {
+                return alert("Lütfen en az bir ürün kalemi girin, tutar yazın veya irsaliye resmi ekleyin.");
+            }
+        } else {
+            paid = parseFloat(pePaid.value) || 0;
+            if (paid <= 0 && !editWaybillBase64) {
+                return alert("Lütfen ödeme / tahsilat tutarını girin.");
+            }
+            const method = pePaymentMethod.value || "Nakit";
+            waybillText = (waybillText ? waybillText + " " : "") + `[Ödeme: ${method}]`;
+        }
+
+        if (typeof config.onSave === "function") {
+            config.onSave({
+                date: dateVal,
+                total,
+                paid,
+                items,
+                waybill: editWaybillBase64,
+                waybillText
+            });
+        }
+    });
+
+    modal.style.display = "block";
 }
 
 // WhatsApp Paylaşım Fonksiyonu

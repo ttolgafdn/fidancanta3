@@ -123,12 +123,19 @@ if (typeof getLocalDateString === "undefined") {
 
 let db;
 let dbReady = false;
+let currentKasaPhotoBase64 = null;
+let kasaFeedbackTimer = null;
+let editingKasaRecordId = null;
+let editingKasaOriginalRecord = null;
+let editingKasaPhotoBase64 = null;
 
 openVerifiedDB("financeDB").then(database => {
     db = database;
     dbReady = true;
     updateDateUI();
     loadDashboardSummary();
+    loadKasaCustomerSuggestions();
+    refreshKasaSearch();
 }).catch(err => {
     console.error("financeDB hatası:", err);
 });
@@ -171,8 +178,111 @@ function onDateChange() {
     const input = document.getElementById("currentDate").value;
     if (!input) return;
 
-    selectedDate = new Date(input);
+    const parts = input.split("-").map(Number);
+    if (parts.length === 3 && parts.every(n => !isNaN(n))) {
+        selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    } else {
+        selectedDate = new Date(input);
+    }
     loadDayRecords();
+}
+
+// =======================
+// KASA FORM YARDIMCILARI
+// =======================
+
+function parseKasaAmount(raw) {
+    if (raw === null || raw === undefined) return NaN;
+    let str = String(raw).trim().replace(/\s+/g, "");
+    if (!str) return 0;
+
+    if (str.includes(",") && str.includes(".")) {
+        str = str.replace(/\./g, "").replace(",", ".");
+    } else if (str.includes(",")) {
+        str = str.replace(",", ".");
+    }
+
+    const num = Number(str);
+    return Number.isFinite(num) ? num : NaN;
+}
+
+function readKasaPhotoInput(inputId, onLoad) {
+    const input = document.getElementById(inputId);
+    const file = input && input.files ? input.files[0] : null;
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        onLoad(e.target.result);
+    };
+    reader.readAsDataURL(file);
+}
+
+function previewKasaPhoto() {
+    readKasaPhotoInput("kasaPhotoInput", (dataUrl) => {
+        currentKasaPhotoBase64 = dataUrl;
+        const preview = document.getElementById("kasaPhotoPreview");
+        const removeBtn = document.getElementById("removeKasaPhotoBtn");
+        if (preview) {
+            preview.src = currentKasaPhotoBase64;
+            preview.style.display = "block";
+        }
+        if (removeBtn) removeBtn.style.display = "inline-flex";
+    });
+}
+
+function removeKasaPhoto() {
+    currentKasaPhotoBase64 = null;
+    const input = document.getElementById("kasaPhotoInput");
+    const preview = document.getElementById("kasaPhotoPreview");
+    const removeBtn = document.getElementById("removeKasaPhotoBtn");
+    if (input) input.value = "";
+    if (preview) {
+        preview.src = "";
+        preview.style.display = "none";
+    }
+    if (removeBtn) removeBtn.style.display = "none";
+}
+
+function showKasaSaveFeedback(message) {
+    const el = document.getElementById("kasaSaveFeedback");
+    if (!el) return;
+    el.textContent = message;
+    el.style.display = "block";
+    if (kasaFeedbackTimer) clearTimeout(kasaFeedbackTimer);
+    kasaFeedbackTimer = setTimeout(() => {
+        el.style.display = "none";
+    }, 2500);
+}
+
+function loadKasaCustomerSuggestions() {
+    const datalist = document.getElementById("kasaCustomerSuggestions");
+    if (!datalist) return;
+    if (!dbReady || !db || !db.objectStoreNames.contains("records")) return;
+
+    const namesMap = new Map();
+    const addName = (name) => {
+        const clean = String(name || "").trim();
+        if (!clean) return;
+        const key = clean.toLocaleLowerCase("tr-TR");
+        if (!namesMap.has(key)) namesMap.set(key, clean);
+    };
+
+    try {
+        const tx = db.transaction("records", "readonly");
+        tx.objectStore("records").getAll().onsuccess = e => {
+            (e.target.result || []).forEach(r => addName(r && r.customerName));
+            datalist.innerHTML = "";
+            const sortedNames = Array.from(namesMap.values()).sort((a, b) => a.localeCompare(b, "tr-TR"));
+            sortedNames.forEach(name => {
+                const opt = document.createElement("option");
+                opt.value = name;
+                datalist.appendChild(opt);
+            });
+        };
+    } catch (err) {
+        console.error("Kasa müşteri önerileri yüklenemedi:", err);
+    }
 }
 
 // =======================
@@ -182,27 +292,288 @@ function onDateChange() {
 function save() {
     if (!dbReady) return alert("Veritabanı hazır değil");
 
+    const amountEl = document.getElementById("amount");
+    const rawAmount = amountEl ? amountEl.value : "";
+    const parsedAmount = parseKasaAmount(rawAmount);
+
+    if (Number.isNaN(parsedAmount) || parsedAmount < 0) {
+        return alert("Lütfen geçerli bir tutar girin.");
+    }
+
+    if (parsedAmount <= 0 && !currentKasaPhotoBase64) {
+        return alert("Lütfen tutar girin veya fotoğraf ekleyin.");
+    }
+
+    const customerNameEl = document.getElementById("customerName");
+    const descriptionEl = document.getElementById("description");
+
     const record = {
         payment: document.getElementById("payment").value, // cash | visa | transfer
-        amount: Number(document.getElementById("amount").value),
-        date: getISODate(selectedDate)
+        amount: parsedAmount,
+        date: getISODate(selectedDate),
+        customerName: customerNameEl ? customerNameEl.value.trim() : "",
+        description: descriptionEl ? descriptionEl.value.trim() : "",
+        photo: currentKasaPhotoBase64 || null,
+        createdAt: new Date().toISOString()
     };
-
-    if (!record.amount) return;
 
     const tx = db.transaction("records", "readwrite");
     tx.objectStore("records").add(record);
 
     tx.oncomplete = () => {
+        if (amountEl) amountEl.value = "";
+        if (customerNameEl) customerNameEl.value = "";
+        if (descriptionEl) descriptionEl.value = "";
+        removeKasaPhoto();
         loadDayRecords();
+        loadKasaCustomerSuggestions();
+        refreshKasaSearch();
+        showKasaSaveFeedback("Satış kaydedildi ✅");
     };
 
-    document.getElementById("amount").value = "";
+    tx.onerror = () => {
+        alert("Kayıt sırasında bir hata oluştu ❌");
+    };
 }
 
 // =======================
-// LOAD DAY TOTALS
+// LOAD DAY TOTALS & ROWS
 // =======================
+
+function escapeKasaHtml(str) {
+    return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function formatPaymentLabel(payment) {
+    if (payment === "cash") return "Nakit";
+    if (payment === "visa") return "Visa";
+    if (payment === "transfer") return "Havale";
+    return payment || "-";
+}
+
+function formatRecordTime(createdAt) {
+    if (!createdAt) return "";
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function renderKasaRecordsTable(tbodyId, records, countElId, emptyMessage) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+
+    const countEl = countElId ? document.getElementById(countElId) : null;
+    if (countEl) countEl.textContent = `${records.length} kayıt`;
+
+    tbody.innerHTML = "";
+    if (!records || records.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">${escapeKasaHtml(emptyMessage)}</td></tr>`;
+        return;
+    }
+
+    records.forEach(r => {
+        const tr = document.createElement("tr");
+        const dateText = formatDateTR(r.date);
+        const timeText = formatRecordTime(r.createdAt);
+        const customerText = r.customerName ? escapeKasaHtml(r.customerName) : "";
+        const descText = r.description ? escapeKasaHtml(r.description) : "";
+        const payClass = ["cash", "visa", "transfer"].includes(r.payment) ? `pay-${r.payment}` : "";
+        const payLabel = formatPaymentLabel(r.payment);
+        const hasPhoto = Boolean(r.photo);
+        const hasId = r.id !== undefined && r.id !== null;
+
+        if (hasId) {
+            tr.className = "clickable-row";
+            tr.onclick = () => openKasaEditModal(r.id);
+        }
+
+        tr.innerHTML = `
+            <td style="font-weight: 600;">
+                ${escapeKasaHtml(dateText)}
+                ${timeText ? `<div style="font-size: 11px; color: var(--text-3); font-weight: 400;">${escapeKasaHtml(timeText)}</div>` : ""}
+            </td>
+            <td class="col-left">${customerText ? `<strong>${customerText}</strong>` : `<span class="muted">-</span>`}</td>
+            <td class="col-left"><span class="pay-badge ${payClass}">${escapeKasaHtml(payLabel)}</span></td>
+            <td class="col-wrap">${descText || `<span class="muted">-</span>`}</td>
+            <td class="money"><strong>${formatTL(r.amount || 0)}</strong></td>
+            <td class="col-center">
+                <button type="button" class="view-btn" title="Düzenle / Detay">
+                    ${hasPhoto ? "📷" : "✏️"}
+                </button>
+            </td>
+        `;
+
+        if (hasId) {
+            const viewBtn = tr.querySelector(".view-btn");
+            if (viewBtn) {
+                viewBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    openKasaEditModal(r.id);
+                });
+            }
+        }
+        tbody.appendChild(tr);
+    });
+}
+
+// =======================
+// SATIŞ DETAY & DÜZENLEME MODALI
+// =======================
+
+function updateEditKasaPhotoUI() {
+    const wrap = document.getElementById("editKasaPhotoWrap");
+    const preview = document.getElementById("editKasaPhotoPreview");
+    if (!wrap || !preview) return;
+
+    if (editingKasaPhotoBase64) {
+        preview.src = editingKasaPhotoBase64;
+        wrap.style.display = "block";
+    } else {
+        preview.src = "";
+        wrap.style.display = "none";
+    }
+}
+
+function previewEditKasaPhoto() {
+    readKasaPhotoInput("editKasaPhotoInput", (dataUrl) => {
+        editingKasaPhotoBase64 = dataUrl;
+        updateEditKasaPhotoUI();
+    });
+}
+
+function removeEditKasaPhoto() {
+    editingKasaPhotoBase64 = null;
+    const input = document.getElementById("editKasaPhotoInput");
+    if (input) input.value = "";
+    updateEditKasaPhotoUI();
+}
+
+function openKasaImageFull(src) {
+    if (!src) return;
+    const lightbox = document.getElementById("kasaLightboxModal");
+    const img = document.getElementById("kasaLightboxImg");
+    if (!lightbox || !img) return;
+    img.src = src;
+    lightbox.classList.add("open");
+}
+
+function closeKasaImageFull() {
+    const lightbox = document.getElementById("kasaLightboxModal");
+    const img = document.getElementById("kasaLightboxImg");
+    if (lightbox) lightbox.classList.remove("open");
+    if (img) img.src = "";
+}
+
+function openKasaEditModal(recordId) {
+    if (!dbReady) return alert("Veritabanı hazır değil");
+
+    const tx = db.transaction("records", "readonly");
+    tx.objectStore("records").get(recordId).onsuccess = (e) => {
+        const record = e.target.result;
+        if (!record) return alert("Kayıt bulunamadı.");
+
+        editingKasaRecordId = record.id;
+        editingKasaOriginalRecord = record;
+        editingKasaPhotoBase64 = record.photo || null;
+
+        const dateEl = document.getElementById("editKasaDate");
+        const payEl = document.getElementById("editKasaPayment");
+        const amtEl = document.getElementById("editKasaAmount");
+        const custEl = document.getElementById("editKasaCustomerName");
+        const descEl = document.getElementById("editKasaDescription");
+        const photoInput = document.getElementById("editKasaPhotoInput");
+
+        if (dateEl) dateEl.value = record.date || getISODate(selectedDate);
+        if (payEl) payEl.value = record.payment || "cash";
+        if (amtEl) amtEl.value = record.amount !== undefined && record.amount !== null ? String(record.amount) : "";
+        if (custEl) custEl.value = record.customerName || "";
+        if (descEl) descEl.value = record.description || "";
+        if (photoInput) photoInput.value = "";
+
+        updateEditKasaPhotoUI();
+
+        const modal = document.getElementById("kasaEditModal");
+        if (modal) modal.style.display = "block";
+    };
+}
+
+function closeKasaEditModal() {
+    const modal = document.getElementById("kasaEditModal");
+    if (modal) modal.style.display = "none";
+    editingKasaRecordId = null;
+    editingKasaOriginalRecord = null;
+    editingKasaPhotoBase64 = null;
+}
+
+function saveKasaRecordEdit() {
+    if (!dbReady || editingKasaRecordId === null) return;
+
+    const dateVal = document.getElementById("editKasaDate")?.value;
+    if (!dateVal) return alert("Lütfen tarih seçin.");
+
+    const rawAmount = document.getElementById("editKasaAmount")?.value || "";
+    const parsedAmount = parseKasaAmount(rawAmount);
+
+    if (Number.isNaN(parsedAmount) || parsedAmount < 0) {
+        return alert("Lütfen geçerli bir tutar girin.");
+    }
+
+    if (parsedAmount <= 0 && !editingKasaPhotoBase64) {
+        return alert("Lütfen tutar girin veya fotoğraf ekleyin.");
+    }
+
+    const updatedRecord = {
+        ...(editingKasaOriginalRecord || {}),
+        id: editingKasaRecordId,
+        date: dateVal,
+        payment: document.getElementById("editKasaPayment")?.value || "cash",
+        amount: parsedAmount,
+        customerName: document.getElementById("editKasaCustomerName")?.value.trim() || "",
+        description: document.getElementById("editKasaDescription")?.value.trim() || "",
+        photo: editingKasaPhotoBase64 || null,
+        updatedAt: new Date().toISOString()
+    };
+
+    const tx = db.transaction("records", "readwrite");
+    tx.objectStore("records").put(updatedRecord);
+
+    tx.oncomplete = () => {
+        closeKasaEditModal();
+        loadDayRecords();
+        loadKasaCustomerSuggestions();
+        if (typeof refreshKasaSearch === "function") refreshKasaSearch();
+        showKasaSaveFeedback("Kayıt güncellendi ✅");
+    };
+
+    tx.onerror = () => {
+        alert("Güncelleme sırasında hata oluştu ❌");
+    };
+}
+
+function deleteKasaRecord() {
+    if (!dbReady || editingKasaRecordId === null) return;
+    if (!confirm("Bu satış kaydı tamamen silinecek. Emin misiniz?")) return;
+
+    const tx = db.transaction("records", "readwrite");
+    tx.objectStore("records").delete(editingKasaRecordId);
+
+    tx.oncomplete = () => {
+        closeKasaEditModal();
+        loadDayRecords();
+        loadKasaCustomerSuggestions();
+        if (typeof refreshKasaSearch === "function") refreshKasaSearch();
+        showKasaSaveFeedback("Kayıt silindi ✅");
+    };
+
+    tx.onerror = () => {
+        alert("Silme sırasında hata oluştu ❌");
+    };
+}
 
 function loadDayRecords() {
     if (!dbReady) return;
@@ -217,14 +588,19 @@ function loadDayRecords() {
         let cash = 0;
         let visa = 0;
         let transfer = 0;
+        const dayRecords = [];
 
-        req.result.forEach(r => {
-            if (r.date === day) {
-                if (r.payment === "cash") cash += r.amount;
-                else if (r.payment === "visa") visa += r.amount;
-                else if (r.payment === "transfer") transfer += r.amount;
+        (req.result || []).forEach(r => {
+            if (r && r.date === day) {
+                const amt = Number(r.amount || 0);
+                if (r.payment === "cash") cash += amt;
+                else if (r.payment === "visa") visa += amt;
+                else if (r.payment === "transfer") transfer += amt;
+                dayRecords.push(r);
             }
         });
+
+        dayRecords.sort((a, b) => (b.id || 0) - (a.id || 0));
 
         const cashEl = document.getElementById("cash");
         const visaEl = document.getElementById("visa");
@@ -235,6 +611,108 @@ function loadDayRecords() {
         if (visaEl) animateNumber(visaEl, visa);
         if (transferEl) animateNumber(transferEl, transfer);
         if (balanceEl) animateNumber(balanceEl, cash + visa + transfer);
+
+        renderKasaRecordsTable(
+            "kasaDayRecordsBody",
+            dayRecords,
+            "kasaDayRecordsCount",
+            "Bu tarihte henüz satış kaydı bulunmuyor."
+        );
+    };
+}
+
+// =======================
+// MÜŞTERİ ADINA GÖRE ARAMA (TÜM TARİHLER)
+// =======================
+
+function onKasaSearchInput() {
+    refreshKasaSearch();
+}
+
+function clearKasaSearch() {
+    const input = document.getElementById("kasaCustomerSearch");
+    if (input) {
+        input.value = "";
+        input.focus();
+    }
+    refreshKasaSearch();
+}
+
+function refreshKasaSearch() {
+    const input = document.getElementById("kasaCustomerSearch");
+    if (!input) return;
+
+    const rawQuery = input.value.trim();
+    const clearBtn = document.getElementById("clearKasaSearchBtn");
+    const hintEl = document.getElementById("kasaSearchHint");
+    const resultsWrap = document.getElementById("kasaSearchResultsWrap");
+
+    if (!rawQuery) {
+        if (clearBtn) clearBtn.style.display = "none";
+        if (hintEl) hintEl.style.display = "block";
+        if (resultsWrap) resultsWrap.style.display = "none";
+        const tbody = document.getElementById("kasaSearchResultsBody");
+        if (tbody) tbody.innerHTML = "";
+        return;
+    }
+
+    if (clearBtn) clearBtn.style.display = "inline-flex";
+    if (hintEl) hintEl.style.display = "none";
+    if (resultsWrap) resultsWrap.style.display = "block";
+
+    if (!dbReady) return;
+
+    const normalizedQuery = rawQuery.replace(/\s+/g, " ").toLocaleLowerCase("tr-TR");
+
+    const tx = db.transaction("records", "readonly");
+    tx.objectStore("records").getAll().onsuccess = (e) => {
+        const all = e.target.result || [];
+        const matches = all.filter(r => {
+            if (!r || !r.customerName) return false;
+            const normName = String(r.customerName).replace(/\s+/g, " ").toLocaleLowerCase("tr-TR");
+            return normName.includes(normalizedQuery);
+        });
+
+        matches.sort((a, b) => {
+            const dateCmp = String(b.date || "").localeCompare(String(a.date || ""));
+            if (dateCmp !== 0) return dateCmp;
+            return (b.id || 0) - (a.id || 0);
+        });
+
+        let totalAmount = 0;
+        let cashSum = 0;
+        let visaSum = 0;
+        let transferSum = 0;
+
+        matches.forEach(r => {
+            const amt = Number(r.amount || 0);
+            totalAmount += amt;
+            if (r.payment === "cash") cashSum += amt;
+            else if (r.payment === "visa") visaSum += amt;
+            else if (r.payment === "transfer") transferSum += amt;
+        });
+
+        const titleEl = document.getElementById("kasaSearchSummaryTitle");
+        const totalEl = document.getElementById("kasaSearchTotal");
+        const breakdownEl = document.getElementById("kasaSearchBreakdown");
+
+        if (titleEl) titleEl.textContent = `“${rawQuery}” için satışlar`;
+        if (totalEl) totalEl.textContent = formatTL(totalAmount);
+
+        if (breakdownEl) {
+            const parts = [];
+            if (cashSum > 0) parts.push(`Nakit: ${formatTL(cashSum)}`);
+            if (visaSum > 0) parts.push(`Visa: ${formatTL(visaSum)}`);
+            if (transferSum > 0) parts.push(`Havale: ${formatTL(transferSum)}`);
+            breakdownEl.textContent = parts.length > 0 ? parts.join(" · ") : "Eşleşen satış özeti";
+        }
+
+        renderKasaRecordsTable(
+            "kasaSearchResultsBody",
+            matches,
+            "kasaSearchCount",
+            "Bu müşteri adına ait satış kaydı bulunamadı."
+        );
     };
 }
 
@@ -517,6 +995,8 @@ function clearDay() {
 
     tx.oncomplete = () => {
         loadDayRecords();
+        loadKasaCustomerSuggestions();
+        if (typeof refreshKasaSearch === "function") refreshKasaSearch();
         alert("Seçili gün temizlendi ✅");
     };
 }
@@ -524,11 +1004,11 @@ function clearDay() {
 function removeAmount() {
     if (!dbReady) return alert("Veritabanı hazır değil");
 
-    const amountToRemove = Number(document.getElementById("amount").value);
+    const amountToRemove = parseKasaAmount(document.getElementById("amount").value);
     const paymentType = document.getElementById("payment").value;
     const day = getISODate(selectedDate);
 
-    if (!amountToRemove || amountToRemove <= 0) {
+    if (!amountToRemove || Number.isNaN(amountToRemove) || amountToRemove <= 0) {
         alert("Silinecek tutarı gir");
         return;
     }
@@ -546,14 +1026,16 @@ function removeAmount() {
 
         for (let r of todays) {
             if (remaining <= 0) break;
+            const amt = Number(r.amount || 0);
+            if (amt <= 0) continue;
 
-            if (r.amount <= remaining) {
-                remaining -= r.amount;
+            if (amt <= remaining) {
+                remaining -= amt;
                 store.delete(r.id);
             } else {
                 store.put({
                     ...r,
-                    amount: r.amount - remaining
+                    amount: amt - remaining
                 });
                 remaining = 0;
             }
@@ -563,6 +1045,7 @@ function removeAmount() {
     tx.oncomplete = () => {
         document.getElementById("amount").value = "";
         loadDayRecords();
+        if (typeof refreshKasaSearch === "function") refreshKasaSearch();
     };
 }
 
@@ -591,8 +1074,8 @@ function animateNumber(el, target, duration = 500) {
 
     function step(now) {
         const progress = Math.min((now - startTime) / duration, 1);
-        const value = Math.floor(progress * target);
-        el.textContent = value.toLocaleString("tr-TR") + " ₺";
+        const value = progress < 1 ? Math.floor(progress * target) : target;
+        el.textContent = value.toLocaleString("tr-TR", { maximumFractionDigits: 2 }) + " ₺";
 
         if (progress < 1) {
             requestAnimationFrame(step);
