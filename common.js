@@ -752,11 +752,8 @@ function shareReceiptViaWhatsApp(record, partyName, partyType) {
     if (record.paid > 0) {
         text += `💵 *Yapılan/Alınan Ödeme:* ${formatTL(record.paid)}\n`;
     }
-    if (record.waybillText) {
-        text += `📝 *Not:* ${record.waybillText}\n`;
-    }
 
-    text += `\n*FİDAN ÇANTA İmalat & Toptan*\nİyi çalışmalar dileriz.`;
+    text += `\n*FİDAN ÇANTA İmalat & Toptan*\nİyi günler.`;
 
     openWhatsAppWithText(text);
 }
@@ -998,9 +995,7 @@ function sharePartyRecordsTable(partyType, partyName, records) {
         if (total > 0) txParts.push(`${totalColLabel}: ${formatTL(total)}`);
         if (paid > 0) txParts.push(`${paidColLabel}: ${formatTL(paid)}`);
         txParts.push(`${balanceColLabel}: *${formatTL(runningBalance)}*`);
-        let line = `${idx + 1}. *${dateStr}* — ${txParts.join(" | ")}`;
-        if (subNote) line += `\n   _${subNote}_`;
-        waLines.push(line);
+        waLines.push(`${idx + 1}. *${dateStr}* — ${txParts.join(" | ")}`);
     });
 
     const headerTitle = isSupplier ? "*FİDAN ÇANTA — TOPTANCI HESAP EKSTRESİ*" : "*FİDAN ÇANTA — CARİ HESAP EKSTRESİ*";
@@ -1010,15 +1005,13 @@ function sharePartyRecordsTable(partyType, partyName, records) {
 
     let waText = `${headerTitle}\n`;
     waText += `👤 *${partyLabelText}* ${cleanName}\n`;
-    waText += `📅 *Rapor Tarihi:* ${todayStr}\n`;
-    waText += `📋 *Hareket Sayısı:* ${list.length}\n`;
     waText += `--------------------------------\n`;
     waText += waLines.join("\n");
     waText += `\n--------------------------------\n`;
     waText += `📦 *Toplam ${totalColLabel}:* ${formatTL(sumTotal)}\n`;
     waText += `💵 *Toplam ${paidColLabel}:* ${formatTL(sumPaid)}\n`;
     waText += `💰 *${finalBalanceLabel}* ${formatTL(runningBalance)}\n`;
-    waText += `\n*FİDAN ÇANTA İmalat & Toptan*\nİyi çalışmalar dileriz.`;
+    waText += `\n*FİDAN ÇANTA İmalat & Toptan*\nİyi günler.`;
 
     openTableShareModal({
         reportTitle: isSupplier ? "TOPTANCI HESAP EKSTRESİ" : "MÜŞTERİ HESAP EKSTRESİ",

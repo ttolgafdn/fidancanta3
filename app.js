@@ -769,14 +769,10 @@ function openKasaRecordsShareModal(data, mode) {
             ]
         });
 
-        let line = `${idx + 1}. *${dateText}${timeText ? " " + timeText : ""}* — ${payLabel} — *${amtText}*`;
-        const metaParts = [];
-        if (customer !== "-") metaParts.push(`👤 ${customer}`);
-        if (desc !== "-") metaParts.push(`📝 ${desc}`);
-        if (metaParts.length > 0) {
-            line += `\n   ${metaParts.join(" · ")}`;
-        }
-        waLines.push(line);
+        const waLine = !isSearch && customer !== "-"
+            ? `${idx + 1}. *${dateText}* — ${customer} (${payLabel}): *${amtText}*`
+            : `${idx + 1}. *${dateText}* — ${payLabel}: *${amtText}*`;
+        waLines.push(waLine);
     });
 
     const summaryLines = [];
@@ -797,14 +793,14 @@ function openKasaRecordsShareModal(data, mode) {
     waSummary.push(`💰 *Genel Toplam:* ${formatTL(data.total || 0)}`);
 
     const waHeader = isSearch
-        ? `*FİDAN ÇANTA — MÜŞTERİ SATIŞ LİSTESİ*\n🔍 *Müşteri:* ${data.query}\n📅 *Rapor Tarihi:* ${reportDate}`
+        ? `*FİDAN ÇANTA — MÜŞTERİ SATIŞ LİSTESİ*\n👤 *Müşteri:* ${data.query}`
         : `*FİDAN ÇANTA — GÜNLÜK KASA SATIŞ LİSTESİ*\n📅 *Tarih:* ${reportDate}`;
 
-    let waText = `${waHeader}\n📋 *Kayıt Sayısı:* ${records.length}\n--------------------------------\n`;
+    let waText = `${waHeader}\n--------------------------------\n`;
     waText += waLines.join("\n");
     waText += `\n--------------------------------\n`;
     waText += waSummary.join("\n");
-    waText += `\n\n*FİDAN ÇANTA İmalat & Toptan*`;
+    waText += `\n\n*FİDAN ÇANTA İmalat & Toptan*\nİyi günler.`;
 
     openTableShareModal({
         reportTitle: isSearch ? "MÜŞTERİ SATIŞ TABLOSU" : "GÜNLÜK KASA SATIŞ TABLOSU",
@@ -858,10 +854,9 @@ function buildKasaSingleRecordWhatsAppText(rec) {
     text += `📅 *Tarih:* ${formatDateTR(rec.date)}\n`;
     if (rec.customerName) text += `👤 *Müşteri:* ${rec.customerName}\n`;
     text += `💳 *Ödeme Şekli:* ${formatPaymentLabel(rec.payment)}\n`;
-    if (rec.description) text += `📝 *Açıklama:* ${rec.description}\n`;
     text += `--------------------------------\n`;
     text += `💰 *Tutar:* ${formatTL(rec.amount || 0)}\n`;
-    text += `\n*FİDAN ÇANTA İmalat & Toptan*\nİyi çalışmalar dileriz.`;
+    text += `\n*FİDAN ÇANTA İmalat & Toptan*\nİyi günler.`;
     return text;
 }
 
