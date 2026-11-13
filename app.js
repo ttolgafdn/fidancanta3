@@ -602,6 +602,15 @@ function loadDayRecords() {
 
         dayRecords.sort((a, b) => (b.id || 0) - (a.id || 0));
 
+        window._currentKasaDayData = {
+            date: day,
+            records: dayRecords,
+            cash,
+            visa,
+            transfer,
+            total: cash + visa + transfer
+        };
+
         const cashEl = document.getElementById("cash");
         const visaEl = document.getElementById("visa");
         const transferEl = document.getElementById("transfer");
@@ -648,6 +657,7 @@ function refreshKasaSearch() {
     const resultsWrap = document.getElementById("kasaSearchResultsWrap");
 
     if (!rawQuery) {
+        window._currentKasaSearchData = null;
         if (clearBtn) clearBtn.style.display = "none";
         if (hintEl) hintEl.style.display = "block";
         if (resultsWrap) resultsWrap.style.display = "none";
@@ -692,6 +702,15 @@ function refreshKasaSearch() {
             else if (r.payment === "transfer") transferSum += amt;
         });
 
+        window._currentKasaSearchData = {
+            query: rawQuery,
+            records: matches,
+            cash: cashSum,
+            visa: visaSum,
+            transfer: transferSum,
+            total: totalAmount
+        };
+
         const titleEl = document.getElementById("kasaSearchSummaryTitle");
         const totalEl = document.getElementById("kasaSearchTotal");
         const breakdownEl = document.getElementById("kasaSearchBreakdown");
@@ -714,6 +733,178 @@ function refreshKasaSearch() {
             "Bu müşteri adına ait satış kaydı bulunamadı."
         );
     };
+}
+
+// =======================
+// KASA TABLO & FİŞ PAYLAŞIM / YAZDIRMA
+// =======================
+
+function openKasaRecordsShareModal(data, mode) {
+    const records = data && Array.isArray(data.records) ? data.records : [];
+    if (records.length === 0) {
+        alert("Paylaşılacak satış kaydı bulunmuyor.");
+        return;
+    }
+
+    const isSearch = mode === "search";
+    const reportDate = isSearch ? formatDateTR(getLocalDateString()) : formatDateTR(data.date);
+    const rows = [];
+    const waLines = [];
+
+    records.forEach((r, idx) => {
+        const dateText = formatDateTR(r.date);
+        const timeText = formatRecordTime(r.createdAt);
+        const customer = r.customerName ? String(r.customerName).trim() : "-";
+        const payLabel = formatPaymentLabel(r.payment);
+        const desc = r.description ? String(r.description).trim() : "-";
+        const amtText = formatTL(r.amount || 0);
+
+        rows.push({
+            cells: [
+                { text: dateText, subtext: timeText, bold: true },
+                { text: customer, bold: customer !== "-" },
+                { text: payLabel },
+                { text: desc },
+                { text: amtText, bold: true }
+            ]
+        });
+
+        let line = `${idx + 1}. *${dateText}${timeText ? " " + timeText : ""}* — ${payLabel} — *${amtText}*`;
+        const metaParts = [];
+        if (customer !== "-") metaParts.push(`👤 ${customer}`);
+        if (desc !== "-") metaParts.push(`📝 ${desc}`);
+        if (metaParts.length > 0) {
+            line += `\n   ${metaParts.join(" · ")}`;
+        }
+        waLines.push(line);
+    });
+
+    const summaryLines = [];
+    const waSummary = [];
+    if (!isSearch || data.cash > 0) {
+        summaryLines.push({ label: "Nakit:", value: formatTL(data.cash || 0) });
+        waSummary.push(`💵 *Nakit:* ${formatTL(data.cash || 0)}`);
+    }
+    if (!isSearch || data.visa > 0) {
+        summaryLines.push({ label: "Visa:", value: formatTL(data.visa || 0) });
+        waSummary.push(`💳 *Visa:* ${formatTL(data.visa || 0)}`);
+    }
+    if (!isSearch || data.transfer > 0) {
+        summaryLines.push({ label: "Havale:", value: formatTL(data.transfer || 0) });
+        waSummary.push(`🏦 *Havale:* ${formatTL(data.transfer || 0)}`);
+    }
+    summaryLines.push({ label: "Genel Toplam:", value: formatTL(data.total || 0), highlight: "grand" });
+    waSummary.push(`💰 *Genel Toplam:* ${formatTL(data.total || 0)}`);
+
+    const waHeader = isSearch
+        ? `*FİDAN ÇANTA — MÜŞTERİ SATIŞ LİSTESİ*\n🔍 *Müşteri:* ${data.query}\n📅 *Rapor Tarihi:* ${reportDate}`
+        : `*FİDAN ÇANTA — GÜNLÜK KASA SATIŞ LİSTESİ*\n📅 *Tarih:* ${reportDate}`;
+
+    let waText = `${waHeader}\n📋 *Kayıt Sayısı:* ${records.length}\n--------------------------------\n`;
+    waText += waLines.join("\n");
+    waText += `\n--------------------------------\n`;
+    waText += waSummary.join("\n");
+    waText += `\n\n*FİDAN ÇANTA İmalat & Toptan*`;
+
+    openTableShareModal({
+        reportTitle: isSearch ? "MÜŞTERİ SATIŞ TABLOSU" : "GÜNLÜK KASA SATIŞ TABLOSU",
+        subtitle: isSearch ? "Müşteri Adına Göre Satış Kayıtları" : "Günün Satış Kayıtları",
+        reportDate,
+        countText: `${records.length} kayıt`,
+        partyLabel: isSearch ? "Aranan Müşteri:" : "",
+        partyValue: isSearch ? data.query : "",
+        columns: [
+            { label: "Tarih", align: "left" },
+            { label: "Müşteri", align: "left", wrap: true },
+            { label: "Ödeme", align: "left" },
+            { label: "Açıklama", align: "left", wrap: true },
+            { label: "Tutar", align: "right" }
+        ],
+        rows,
+        summaryLines,
+        whatsappText: waText,
+        shareTitle: isSearch ? `${data.query} - Satış Tablosu` : `Kasa Satış Tablosu (${reportDate})`
+    });
+}
+
+function shareKasaDayRecordsTable() {
+    openKasaRecordsShareModal(window._currentKasaDayData, "day");
+}
+
+function shareKasaSearchRecordsTable() {
+    openKasaRecordsShareModal(window._currentKasaSearchData, "search");
+}
+
+function getEditingKasaRecordSnapshot() {
+    const dateVal = document.getElementById("editKasaDate")?.value || getISODate(selectedDate);
+    const paymentVal = document.getElementById("editKasaPayment")?.value || "cash";
+    const parsedAmount = parseKasaAmount(document.getElementById("editKasaAmount")?.value || "0");
+    const amountVal = Number.isFinite(parsedAmount) ? parsedAmount : Number(editingKasaOriginalRecord?.amount || 0);
+    const customerName = document.getElementById("editKasaCustomerName")?.value.trim() || "";
+    const description = document.getElementById("editKasaDescription")?.value.trim() || "";
+
+    return {
+        date: dateVal,
+        payment: paymentVal,
+        amount: amountVal,
+        customerName,
+        description,
+        photo: editingKasaPhotoBase64 || null
+    };
+}
+
+function buildKasaSingleRecordWhatsAppText(rec) {
+    let text = `*FİDAN ÇANTA — SATIŞ FİŞİ*\n`;
+    text += `📅 *Tarih:* ${formatDateTR(rec.date)}\n`;
+    if (rec.customerName) text += `👤 *Müşteri:* ${rec.customerName}\n`;
+    text += `💳 *Ödeme Şekli:* ${formatPaymentLabel(rec.payment)}\n`;
+    if (rec.description) text += `📝 *Açıklama:* ${rec.description}\n`;
+    text += `--------------------------------\n`;
+    text += `💰 *Tutar:* ${formatTL(rec.amount || 0)}\n`;
+    text += `\n*FİDAN ÇANTA İmalat & Toptan*\nİyi çalışmalar dileriz.`;
+    return text;
+}
+
+function shareCurrentKasaRecord() {
+    if (editingKasaRecordId === null) return;
+    const rec = getEditingKasaRecordSnapshot();
+    openWhatsAppWithText(buildKasaSingleRecordWhatsAppText(rec));
+}
+
+function printCurrentKasaRecord() {
+    if (editingKasaRecordId === null) return;
+    const rec = getEditingKasaRecordSnapshot();
+    openTableShareModal({
+        reportTitle: "KASA SATIŞ FİŞİ",
+        subtitle: "İmalat & Toptan Satış",
+        reportDate: formatDateTR(rec.date),
+        countText: editingKasaRecordId ? `#${editingKasaRecordId}` : "",
+        partyLabel: "Müşteri:",
+        partyValue: rec.customerName || "Perakende / Belirtilmedi",
+        columns: [
+            { label: "Tarih", align: "left" },
+            { label: "Ödeme Şekli", align: "left" },
+            { label: "Açıklama", align: "left", wrap: true },
+            { label: "Tutar", align: "right" }
+        ],
+        rows: [
+            {
+                cells: [
+                    { text: formatDateTR(rec.date), bold: true },
+                    { text: formatPaymentLabel(rec.payment) },
+                    { text: rec.description || "-" },
+                    { text: formatTL(rec.amount || 0), bold: true }
+                ]
+            }
+        ],
+        summaryLines: [
+            { label: "Toplam Tutar:", value: formatTL(rec.amount || 0), highlight: "grand" }
+        ],
+        imageSrc: rec.photo || "",
+        whatsappText: buildKasaSingleRecordWhatsAppText(rec),
+        shareTitle: `Kasa Satış Fişi (${formatDateTR(rec.date)})`,
+        autoPrint: true
+    });
 }
 
 function getDBData(dbName, version, stores) {

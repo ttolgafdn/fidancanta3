@@ -294,6 +294,7 @@ function renderWaybillReceipt(record, partyInfo = {}) {
     modal.onclick = (e) => {
         if (e.target === modal) closeDayDetailsModal();
     };
+    setActivePrintableModal(modal);
     modal.style.display = "block";
 }
 
@@ -305,7 +306,12 @@ function shareCurrentWaybillViaWhatsApp() {
 
 function closeDayDetailsModal() {
     const modal = document.getElementById("dayDetailsModal");
-    if (modal) modal.style.display = "none";
+    if (modal) {
+        modal.style.display = "none";
+        if (modal.classList.contains("print-active-modal")) {
+            setActivePrintableModal(null);
+        }
+    }
 }
 
 // =========================================================
@@ -645,7 +651,78 @@ function openPartyRecordEditModal(record, config) {
     modal.style.display = "block";
 }
 
-// WhatsApp Paylaşım Fonksiyonu
+// Yazdırılacak aktif modalı işaretleme (temiz sayfa yazdırma / PDF çıktısı için)
+function setActivePrintableModal(modalEl) {
+    document.querySelectorAll(".print-active-modal").forEach(el => {
+        el.classList.remove("print-active-modal");
+    });
+    if (modalEl) {
+        modalEl.classList.add("print-active-modal");
+        document.body.classList.add("print-modal-active");
+    } else {
+        document.body.classList.remove("print-modal-active");
+    }
+}
+
+// Panoya metin kopyalama (modern API + eski tarayıcı yedeği)
+function copyTextToClipboard(text, feedbackBtn = null) {
+    const showCopied = () => {
+        if (!feedbackBtn) return;
+        const original = feedbackBtn.dataset.origText || feedbackBtn.textContent;
+        feedbackBtn.dataset.origText = original;
+        feedbackBtn.textContent = "✅ Kopyalandı";
+        setTimeout(() => {
+            if (feedbackBtn) feedbackBtn.textContent = original;
+        }, 1800);
+    };
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        return navigator.clipboard.writeText(text).then(() => {
+            showCopied();
+            return true;
+        }).catch(() => fallbackCopyText(text, showCopied));
+    }
+    return Promise.resolve(fallbackCopyText(text, showCopied));
+}
+
+function fallbackCopyText(text, onSuccess) {
+    try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok && onSuccess) onSuccess();
+        return ok;
+    } catch (_) {
+        return false;
+    }
+}
+
+// WhatsApp paylaşım açıcı (uzun tablolarda URL sınırını aşarsa panoya kopyalar)
+function openWhatsAppWithText(text) {
+    const encoded = encodeURIComponent(text || "");
+    if (encoded.length <= 6000) {
+        window.open(`https://api.whatsapp.com/send?text=${encoded}`, "_blank");
+        return;
+    }
+
+    copyTextToClipboard(text).then(copied => {
+        if (copied) {
+            alert("Tablo çok uzun olduğu için metnin tamamı panoya kopyalandı. Açılan WhatsApp penceresine yapıştırarak gönderebilirsiniz.");
+            window.open("https://api.whatsapp.com/send", "_blank");
+        } else {
+            const truncated = text.slice(0, 2200) + "\n...\n(Liste uzun olduğu için kısaltıldı)";
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(truncated)}`, "_blank");
+        }
+    });
+}
+
+// WhatsApp Paylaşım Fonksiyonu (Tek Fiş / İrsaliye)
 function shareReceiptViaWhatsApp(record, partyName, partyType) {
     const isSupplier = partyType === "Toptancı";
     const headerTitle = isSupplier ? "*FİDAN ÇANTA — GELEN MAL İRSALİYESİ*" : "*FİDAN ÇANTA — İRSALİYE / HESAP FİŞİ*";
@@ -681,6 +758,288 @@ function shareReceiptViaWhatsApp(record, partyName, partyType) {
 
     text += `\n*FİDAN ÇANTA İmalat & Toptan*\nİyi çalışmalar dileriz.`;
 
-    const encoded = encodeURIComponent(text);
-    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+    openWhatsAppWithText(text);
+}
+
+// Satır Satır Tablo / Ekstre Paylaşım ve Yazdırma Modalı
+function closeTableShareModal() {
+    const modal = document.getElementById("sharedTableModal");
+    if (modal) {
+        modal.style.display = "none";
+        if (modal.classList.contains("print-active-modal")) {
+            setActivePrintableModal(null);
+        }
+    }
+    window._currentTableShareState = null;
+}
+
+function openTableShareModal(options) {
+    if (!options) return;
+    window._currentTableShareState = options;
+
+    let modal = document.getElementById("sharedTableModal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "sharedTableModal";
+        modal.className = "modal modal-top";
+        modal.onclick = (e) => {
+            if (e.target === modal) closeTableShareModal();
+        };
+        document.body.appendChild(modal);
+    }
+
+    const columns = Array.isArray(options.columns) ? options.columns : [];
+    const rows = Array.isArray(options.rows) ? options.rows : [];
+    const summaryLines = Array.isArray(options.summaryLines) ? options.summaryLines : [];
+
+    const thHtml = columns.map(col => {
+        const cls = [
+            col.align === "left" ? "col-left" : (col.align === "center" ? "col-center" : "col-right"),
+            col.wrap ? "col-wrap" : ""
+        ].filter(Boolean).join(" ");
+        return `<th class="${cls}">${escapeHtml(col.label)}</th>`;
+    }).join("");
+
+    const rowsHtml = rows.map(row => {
+        const cells = Array.isArray(row.cells) ? row.cells : [];
+        const tds = cells.map((cell, idx) => {
+            const col = columns[idx] || {};
+            const isObj = cell && typeof cell === "object";
+            const text = isObj ? cell.text : cell;
+            const subtext = isObj ? cell.subtext : "";
+            const cls = [
+                col.align === "left" ? "col-left" : (col.align === "center" ? "col-center" : "col-right"),
+                col.wrap ? "col-wrap" : "",
+                isObj && cell.bold ? "cell-bold" : "",
+                isObj && cell.tone ? `tone-${cell.tone}` : ""
+            ].filter(Boolean).join(" ");
+            const subHtml = subtext ? `<div class="receipt-row-sub">${escapeHtml(subtext)}</div>` : "";
+            const cellText = (text !== undefined && text !== null && text !== "") ? text : "-";
+            return `<td class="${cls}">${escapeHtml(cellText)}${subHtml}</td>`;
+        }).join("");
+        return `<tr>${tds}</tr>`;
+    }).join("");
+
+    const summaryHtml = summaryLines.map(line => {
+        const cls = line.highlight === "grand"
+            ? "summary-line grand"
+            : (line.highlight === "paid" ? "summary-line paid" : "summary-line");
+        return `
+            <div class="${cls}">
+                <span>${escapeHtml(line.label)}</span>
+                <span>${escapeHtml(line.value)}</span>
+            </div>
+        `;
+    }).join("");
+
+    const canNativeShare = typeof navigator.share === "function";
+
+    modal.innerHTML = `
+        <div class="modal-content modal-wide">
+            <span class="close" onclick="closeTableShareModal()">&times;</span>
+            <div class="receipt-paper">
+                <div class="receipt-header">
+                    <div class="receipt-title">${escapeHtml(options.reportTitle || "SATIŞ TABLOSU")}</div>
+                    <div class="receipt-meta">
+                        <div class="receipt-company">
+                            <strong>FİDAN ÇANTA</strong>
+                            <div class="receipt-sub">${escapeHtml(options.subtitle || "İmalat & Toptan Satış")}</div>
+                        </div>
+                        <div class="receipt-date">
+                            <div><strong>Tarih:</strong> ${escapeHtml(options.reportDate || formatDateTR(getLocalDateString()))}</div>
+                            ${options.countText ? `<div class="receipt-no">${escapeHtml(options.countText)}</div>` : ""}
+                        </div>
+                    </div>
+                    ${options.partyValue ? `
+                        <div class="receipt-party">
+                            <span class="party-label">${escapeHtml(options.partyLabel || "İlgili:")}</span>
+                            <span class="party-name">${escapeHtml(options.partyValue)}</span>
+                        </div>
+                    ` : ""}
+                </div>
+
+                ${rows.length > 0 ? `
+                    <div class="table-responsive">
+                        <table class="receipt-table receipt-statement-table">
+                            <thead>
+                                <tr>${thHtml}</tr>
+                            </thead>
+                            <tbody>
+                                ${rowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : ""}
+
+                ${summaryHtml ? `<div class="receipt-summary">${summaryHtml}</div>` : ""}
+
+                ${options.noteText ? `
+                    <div class="receipt-note">
+                        <span class="note-label">Not / Açıklama:</span>
+                        <div class="note-body">${escapeHtml(options.noteText)}</div>
+                    </div>
+                ` : ""}
+
+                ${options.imageSrc ? `
+                    <div class="receipt-image-section">
+                        <span class="note-label">📷 Eklenen Fiş / Satış Fotoğrafı:</span>
+                        <div class="receipt-image-wrap">
+                            <img src="${escapeHtml(options.imageSrc)}" alt="Fiş Görseli" onclick="openSharedLightbox(this.src)">
+                        </div>
+                    </div>
+                ` : ""}
+
+                <div class="receipt-footer receipt-footer-wrap">
+                    <button type="button" class="btn btn-primary btn-sm" id="tsWhatsappBtn">💬 WhatsApp ile Paylaş</button>
+                    ${canNativeShare ? `<button type="button" class="btn btn-secondary btn-sm" id="tsNativeShareBtn">📤 Paylaş</button>` : ""}
+                    <button type="button" class="btn btn-secondary btn-sm" id="tsCopyBtn">📋 Metni Kopyala</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="tsPrintBtn">🖨️ Yazdır</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const waBtn = modal.querySelector("#tsWhatsappBtn");
+    const nativeBtn = modal.querySelector("#tsNativeShareBtn");
+    const copyBtn = modal.querySelector("#tsCopyBtn");
+    const printBtn = modal.querySelector("#tsPrintBtn");
+
+    if (waBtn) {
+        waBtn.addEventListener("click", () => {
+            openWhatsAppWithText(options.whatsappText || "");
+        });
+    }
+
+    if (nativeBtn) {
+        nativeBtn.addEventListener("click", () => {
+            navigator.share({
+                title: options.shareTitle || options.reportTitle || "Fidan Çanta Tablo",
+                text: options.whatsappText || ""
+            }).catch(err => {
+                if (err && err.name !== "AbortError") {
+                    openWhatsAppWithText(options.whatsappText || "");
+                }
+            });
+        });
+    }
+
+    if (copyBtn) {
+        copyBtn.addEventListener("click", () => {
+            copyTextToClipboard(options.whatsappText || "", copyBtn).then(ok => {
+                if (!ok) alert("Metin panoya kopyalanamadı.");
+            });
+        });
+    }
+
+    if (printBtn) {
+        printBtn.addEventListener("click", () => {
+            setActivePrintableModal(modal);
+            window.print();
+        });
+    }
+
+    setActivePrintableModal(modal);
+    modal.style.display = "block";
+
+    if (options.autoPrint) {
+        void modal.offsetHeight;
+        window.print();
+    }
+}
+
+// Müşteriler ve Toptancılar için Hesap Hareketleri Tablosu Paylaşımı
+function sharePartyRecordsTable(partyType, partyName, records) {
+    const list = Array.isArray(records) ? records : [];
+    if (list.length === 0) {
+        alert("Paylaşılacak hareket kaydı bulunmuyor.");
+        return;
+    }
+
+    const isSupplier = partyType === "Toptancı";
+    const cleanName = partyName || (isSupplier ? "Toptancı" : "Müşteri");
+    const totalColLabel = isSupplier ? "Alınan Mal" : "Verilen Mal";
+    const paidColLabel = isSupplier ? "Ödenen" : "Tahsilat";
+    const balanceColLabel = isSupplier ? "Kalan Borç" : "Kalan Bakiye";
+
+    let runningBalance = 0;
+    let sumTotal = 0;
+    let sumPaid = 0;
+    const rows = [];
+    const waLines = [];
+
+    list.forEach((r, idx) => {
+        const total = Number(r.total || 0);
+        const paid = Number(r.paid || 0);
+        runningBalance += total;
+        runningBalance -= paid;
+        sumTotal += total;
+        sumPaid += paid;
+
+        const dateStr = formatDateTR(r.date);
+        const noteParts = [];
+        if (Array.isArray(r.items) && r.items.length > 0) {
+            noteParts.push(`${r.items.length} kalem`);
+        }
+        if (r.waybillText) {
+            noteParts.push(String(r.waybillText).trim());
+        }
+        const subNote = noteParts.join(" · ");
+
+        rows.push({
+            cells: [
+                { text: dateStr, subtext: subNote, bold: true },
+                { text: total > 0 ? formatTL(total) : "-", bold: total > 0 },
+                { text: paid > 0 ? formatTL(paid) : "-", bold: paid > 0, tone: paid > 0 ? "positive" : "" },
+                { text: formatTL(runningBalance), bold: true, tone: runningBalance > 0 ? "accent" : "" }
+            ]
+        });
+
+        const txParts = [];
+        if (total > 0) txParts.push(`${totalColLabel}: ${formatTL(total)}`);
+        if (paid > 0) txParts.push(`${paidColLabel}: ${formatTL(paid)}`);
+        txParts.push(`${balanceColLabel}: *${formatTL(runningBalance)}*`);
+        let line = `${idx + 1}. *${dateStr}* — ${txParts.join(" | ")}`;
+        if (subNote) line += `\n   _${subNote}_`;
+        waLines.push(line);
+    });
+
+    const headerTitle = isSupplier ? "*FİDAN ÇANTA — TOPTANCI HESAP EKSTRESİ*" : "*FİDAN ÇANTA — CARİ HESAP EKSTRESİ*";
+    const partyLabelText = isSupplier ? "Toptancı:" : "Sayın / Müşteri:";
+    const finalBalanceLabel = isSupplier ? "Güncel Borcumuz (Bakiye):" : "Güncel Alacağımız (Bakiye):";
+    const todayStr = formatDateTR(getLocalDateString());
+
+    let waText = `${headerTitle}\n`;
+    waText += `👤 *${partyLabelText}* ${cleanName}\n`;
+    waText += `📅 *Rapor Tarihi:* ${todayStr}\n`;
+    waText += `📋 *Hareket Sayısı:* ${list.length}\n`;
+    waText += `--------------------------------\n`;
+    waText += waLines.join("\n");
+    waText += `\n--------------------------------\n`;
+    waText += `📦 *Toplam ${totalColLabel}:* ${formatTL(sumTotal)}\n`;
+    waText += `💵 *Toplam ${paidColLabel}:* ${formatTL(sumPaid)}\n`;
+    waText += `💰 *${finalBalanceLabel}* ${formatTL(runningBalance)}\n`;
+    waText += `\n*FİDAN ÇANTA İmalat & Toptan*\nİyi çalışmalar dileriz.`;
+
+    openTableShareModal({
+        reportTitle: isSupplier ? "TOPTANCI HESAP EKSTRESİ" : "MÜŞTERİ HESAP EKSTRESİ",
+        subtitle: "Hesap Hareketleri & İrsaliyeler",
+        reportDate: todayStr,
+        countText: `${list.length} hareket`,
+        partyLabel: partyLabelText,
+        partyValue: cleanName,
+        columns: [
+            { label: "Tarih", align: "left", wrap: true },
+            { label: totalColLabel, align: "right" },
+            { label: paidColLabel, align: "right" },
+            { label: balanceColLabel, align: "right" }
+        ],
+        rows,
+        summaryLines: [
+            { label: `Toplam ${totalColLabel}:`, value: formatTL(sumTotal) },
+            { label: `Toplam ${paidColLabel}:`, value: formatTL(sumPaid), highlight: "paid" },
+            { label: finalBalanceLabel, value: formatTL(runningBalance), highlight: "grand" }
+        ],
+        whatsappText: waText,
+        shareTitle: `${cleanName} - Hesap Ekstresi`
+    });
 }

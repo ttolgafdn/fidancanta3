@@ -7,7 +7,7 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ffffff">
     <title>Kasa · Fidan Çanta</title>
-    <link rel="stylesheet" href="style.css?v=8" />
+    <link rel="stylesheet" href="style.css?v=11" />
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister();});}).catch(function(){});
@@ -146,12 +146,15 @@
         </section>
 
         <section class="card card-flush" id="kasaDayRecordsCard">
-            <div class="items-header" style="padding: 14px 16px 10px; margin-bottom: 0;">
+            <div class="table-card-head">
                 <div>
                     <h2 class="card-title" style="margin: 0;">Günün Satış Kayıtları</h2>
-                    <span style="font-size: 11px; color: var(--text-3);">(Düzenlemek veya fotoğrafı görmek için satıra dokunun)</span>
+                    <span class="table-card-hint">(Düzenlemek veya fotoğrafı görmek için satıra dokunun)</span>
                 </div>
-                <span id="kasaDayRecordsCount" style="font-size: 12px; color: var(--text-3); font-weight: 600;">0 kayıt</span>
+                <div class="table-card-actions">
+                    <span id="kasaDayRecordsCount" style="font-size: 12px; color: var(--text-3); font-weight: 600;">0 kayıt</span>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="shareKasaDayRecordsTable()">📤 Paylaş / Yazdır</button>
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="data-table" id="kasaDayRecordsTable">
@@ -187,14 +190,17 @@
             </div>
 
             <div id="kasaSearchResultsWrap" style="display: none; border-top: 1px solid var(--border);">
-                <div class="items-header" style="padding: 12px 16px 8px; margin-bottom: 0; background: var(--surface-2);">
+                <div class="table-card-head table-card-head-sub">
                     <div>
                         <strong id="kasaSearchSummaryTitle" style="font-size: 13px; color: var(--ink);">Arama Sonuçları</strong>
                         <div id="kasaSearchBreakdown" style="font-size: 11px; color: var(--text-3); margin-top: 2px;"></div>
                     </div>
-                    <div style="text-align: right;">
-                        <div id="kasaSearchTotal" class="money" style="font-size: 15px; font-weight: 800; color: var(--accent);">0,00 ₺</div>
-                        <div id="kasaSearchCount" style="font-size: 11px; color: var(--text-3); font-weight: 600;">0 kayıt</div>
+                    <div class="table-card-actions">
+                        <div style="text-align: right;">
+                            <div id="kasaSearchTotal" class="money" style="font-size: 15px; font-weight: 800; color: var(--accent);">0,00 ₺</div>
+                            <div id="kasaSearchCount" style="font-size: 11px; color: var(--text-3); font-weight: 600;">0 kayıt</div>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="shareKasaSearchRecordsTable()">📤 Paylaş / Yazdır</button>
                     </div>
                 </div>
                 <div class="table-responsive">
@@ -271,6 +277,11 @@
                     <button type="button" class="btn btn-danger-outline" onclick="deleteKasaRecord()">🗑️ Kaydı Sil</button>
                     <button type="button" class="btn btn-primary" onclick="saveKasaRecordEdit()">💾 Güncelle</button>
                 </div>
+
+                <div class="button-row" style="margin-top: 2px;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="shareCurrentKasaRecord()">💬 WhatsApp ile Paylaş</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="printCurrentKasaRecord()">🖨️ Yazdır</button>
+                </div>
             </div>
         </div>
     </div>
@@ -281,8 +292,8 @@
         <button type="button" class="btn btn-secondary btn-sm" onclick="closeKasaImageFull()">Kapat</button>
     </div>
 
-    <script src="common.js?v=9"></script>
-    <script src="app.js?v=9"></script>
+    <script src="common.js?v=11"></script>
+    <script src="app.js?v=11"></script>
 
 </body>
 

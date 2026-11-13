@@ -7,7 +7,7 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ffffff">
     <title>Müşteriler / Alacaklar · Fidan Çanta</title>
-    <link rel="stylesheet" href="style.css?v=9" />
+    <link rel="stylesheet" href="style.css?v=11" />
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister();});}).catch(function(){});
@@ -161,9 +161,14 @@
 
             <!-- HAREKETLER (CARİ EKSTRE) TABLOSU -->
             <section class="card card-flush">
-                <div class="items-header" style="padding: 14px 16px 0;">
-                    <h2 class="card-title" style="margin: 0;">Hesap Hareketleri & İrsaliyeler</h2>
-                    <span style="font-size: 11px; color: var(--text-3);">(Fiş için satıra, düzenlemek için ✏️ simgesine dokunun)</span>
+                <div class="table-card-head">
+                    <div>
+                        <h2 class="card-title" style="margin: 0;">Hesap Hareketleri & İrsaliyeler</h2>
+                        <span class="table-card-hint">(Fiş için satıra, düzenlemek için ✏️ simgesine dokunun)</span>
+                    </div>
+                    <div class="table-card-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="shareCustomerRecordsTable()">📤 Paylaş / Yazdır</button>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="data-table" id="summaryTable">
@@ -215,9 +220,9 @@
         </div>
     </div>
 
-    <script src="common.js?v=9"></script>
-    <script src="app.js?v=9"></script>
-    <script src="musteri.js?v=9"></script>
+    <script src="common.js?v=11"></script>
+    <script src="app.js?v=11"></script>
+    <script src="musteri.js?v=11"></script>
 
 </body>
 

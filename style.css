@@ -985,6 +985,91 @@ input[type="month"] {
     border-top: 1px solid #eee;
 }
 
+.receipt-footer-wrap {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.receipt-statement-table th,
+.receipt-statement-table td {
+    padding: 7px 6px;
+    font-size: 12px;
+}
+
+.receipt-statement-table th.col-left,
+.receipt-statement-table td.col-left {
+    text-align: left;
+}
+
+.receipt-statement-table th.col-right,
+.receipt-statement-table td.col-right {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.receipt-statement-table th.col-center,
+.receipt-statement-table td.col-center {
+    text-align: center;
+}
+
+.receipt-statement-table th.col-wrap,
+.receipt-statement-table td.col-wrap {
+    text-align: left;
+    white-space: normal;
+    word-break: break-word;
+    min-width: 90px;
+}
+
+.receipt-statement-table td.cell-bold {
+    font-weight: 700;
+}
+
+.receipt-statement-table td.tone-positive {
+    color: var(--positive);
+}
+
+.receipt-statement-table td.tone-accent {
+    color: var(--accent);
+}
+
+.receipt-row-sub {
+    font-size: 11px;
+    font-weight: 400;
+    color: #666;
+    margin-top: 2px;
+    white-space: normal;
+    word-break: break-word;
+}
+
+.table-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 16px 10px;
+}
+
+.table-card-head-sub {
+    background: var(--surface-2);
+    padding: 12px 16px 10px;
+}
+
+.table-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.table-card-hint {
+    display: block;
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 2px;
+}
+
 /* Kalem Ekleme Bölümü (Items Form) */
 .items-card {
     border: 1px solid var(--border-strong);
@@ -1082,6 +1167,10 @@ input[type="month"] {
     background: rgba(35, 35, 38, 0.55);
 }
 
+.modal-top {
+    z-index: 2100;
+}
+
 .modal-content {
     position: relative;
     width: 100%;
@@ -1092,6 +1181,10 @@ input[type="month"] {
     background: var(--surface);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
+}
+
+.modal-content.modal-wide {
+    max-width: 660px;
 }
 
 .modal-title {
@@ -1145,5 +1238,60 @@ input[type="month"] {
 @media (min-width: 720px) {
     .page {
         padding-top: 24px;
+    }
+}
+
+@media print {
+    body.print-modal-active {
+        background: #ffffff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: auto !important;
+    }
+
+    body.print-modal-active > *:not(.print-active-modal) {
+        display: none !important;
+    }
+
+    body.print-modal-active .print-active-modal {
+        display: block !important;
+        position: static !important;
+        inset: auto !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        background: none !important;
+    }
+
+    body.print-modal-active .print-active-modal .modal-content {
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+    }
+
+    body.print-modal-active .print-active-modal .receipt-paper {
+        box-shadow: none !important;
+        padding: 4px 0 !important;
+    }
+
+    body.print-modal-active .print-active-modal .table-responsive {
+        overflow: visible !important;
+    }
+
+    body.print-modal-active .print-active-modal .receipt-table thead {
+        display: table-header-group;
+    }
+
+    body.print-modal-active .print-active-modal .receipt-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    body.print-modal-active .print-active-modal .close,
+    body.print-modal-active .print-active-modal .receipt-footer {
+        display: none !important;
     }
 }

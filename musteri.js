@@ -467,6 +467,11 @@ function openDayDetailsModal(recordId) {
     renderWaybillReceipt(record, { type: "Müşteri", name: partyName });
 }
 
+function shareCustomerRecordsTable() {
+    const partyName = currentCustomerData ? currentCustomerData.name : "Müşteri";
+    sharePartyRecordsTable("Müşteri", partyName, window.currentRenderedRecords);
+}
+
 // Fiş modalı / satır üzerinden düzenleme fonksiyonu
 window.editRecordById = function(recordId) {
     if (!customerDBReady || !customerId) return;

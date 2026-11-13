@@ -471,6 +471,11 @@ function openDayDetailsModal(recordId) {
     renderWaybillReceipt(record, { type: "Toptancı", name: partyName });
 }
 
+function shareSupplierRecordsTable() {
+    const partyName = currentSupplierData ? currentSupplierData.name : "Toptancı";
+    sharePartyRecordsTable("Toptancı", partyName, window.currentRenderedRecords);
+}
+
 // Fiş modalı / satır üzerinden düzenleme fonksiyonu
 window.editRecordById = function(recordId) {
     if (!supplierDBReady || !supplierId) return;
